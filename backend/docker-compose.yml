@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - microservices-net
+
+  product-service:
+    build: ./Product_Service
+    expose:
+      - "3001"
+    networks:
+      - microservices-net
+
+  inventory-service:
+    build: ./Inventory_Service
+    expose:
+      - "3003"
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+    depends_on:
+      - rabbitmq
+    networks:
+      - microservices-net
+
+  order-service:
+    build: ./Order_Service
+    expose:
+      - "3002"
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+    depends_on:
+      - rabbitmq
+    networks:
+      - microservices-net
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - product-service
+      - order-service
+      - inventory-service
+    networks:
+      - microservices-net
+      
+networks:
+  microservices-net:
+    driver: bridge
