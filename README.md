@@ -392,3 +392,8 @@ docker login
 kubectl config current-context
 kubectl cluster-info
 ```
+
+---
+
+## CI/CD Status
+test
