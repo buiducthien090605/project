@@ -36,7 +36,8 @@ Khác với cơ chế Horizontal Pod Autoscaler (HPA) truyền thống chỉ ph�
 
 ### 2.1. Sơ đồ kiến trúc
 
-![Sơ đồ kiến trúc hệ thống](assets/architecture-diagram.png)
+![Sơ đồ kiến trúc hệ thống 1](assets/architecture-1.png)
+![Sơ đồ kiến trúc hệ thống 2](assets/architecture-2.png)
 
 ### 2.2. Các thành phần chính
 
