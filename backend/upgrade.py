@@ -1,3 +1,5 @@
+# AI-Driven Predictive Autoscaling System
+# CI/CD Trigger Test - 2026-05-10
 import time
 import subprocess
 import json
@@ -65,7 +67,9 @@ def get_current_replicas():
         pass
     return current_replicas
 
-log("AI Predictive Scaler (ARIMA + MLP)")
+log("# AI-Driven Predictive Autoscaling System
+# CI/CD Trigger Test - 2026-05-10
+AI Predictive Scaler (ARIMA + MLP)")
 current_replicas = get_current_replicas()
 log(f"Initial replicas: {current_replicas}")
 
