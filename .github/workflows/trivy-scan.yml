@@ -1,0 +1,45 @@
+name: Reusable Trivy Container Scan
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: "Docker image name to scan"
+        required: true
+        type: string
+      image_tag:
+        description: "Docker image tag to scan"
+        required: true
+        type: string
+    secrets:
+      DOCKER_USERNAME:
+        description: "Docker Hub Username (optional, if private repo)"
+        required: false
+      DOCKER_PASSWORD:
+        description: "Docker Hub Password (optional, if private repo)"
+        required: false
+
+jobs:
+  trivy:
+    name: Trivy Scan - ${{ inputs.image_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub (if credentials provided)
+        if: ${{ secrets.DOCKER_USERNAME != '' && secrets.DOCKER_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ inputs.image_name }}:${{ inputs.image_tag }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'

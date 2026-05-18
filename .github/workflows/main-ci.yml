@@ -1,0 +1,72 @@
+name: Unified Microservices CI Pipeline
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  changes:
+    name: Detect Changed Microservices
+    runs-on: ubuntu-latest
+    outputs:
+      product: ${{ steps.filter.outputs.product }}
+      order: ${{ steps.filter.outputs.order }}
+      inventory: ${{ steps.filter.outputs.inventory }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Path Filters
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            product:
+              - 'backend/Product_Service/**'
+            order:
+              - 'backend/Order_Service/**'
+            inventory:
+              - 'backend/Inventory_Service/**'
+
+  product-ci:
+    name: Product Service
+    needs: changes
+    if: ${{ needs.changes.outputs.product == 'true' }}
+    uses: ./.github/workflows/product-service-ci.yml
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+      SONAR_ORG_KEY: ${{ secrets.SONAR_ORG_KEY }}
+
+  order-ci:
+    name: Order Service
+    needs: changes
+    if: ${{ needs.changes.outputs.order == 'true' }}
+    uses: ./.github/workflows/order-service-ci.yml
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+      SONAR_ORG_KEY: ${{ secrets.SONAR_ORG_KEY }}
+
+  inventory-ci:
+    name: Inventory Service
+    needs: changes
+    if: ${{ needs.changes.outputs.inventory == 'true' }}
+    uses: ./.github/workflows/inventory-service-ci.yml
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+      SONAR_ORG_KEY: ${{ secrets.SONAR_ORG_KEY }}

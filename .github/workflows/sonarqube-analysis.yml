@@ -1,0 +1,52 @@
+name: Reusable SonarQube Analysis
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Name of the microservice"
+        required: true
+        type: string
+      service_path:
+        description: "Path to the microservice directory"
+        required: true
+        type: string
+      sonar_host_url:
+        description: "SonarQube Host URL (defaults to SonarCloud)"
+        required: false
+        type: string
+        default: "https://sonarcloud.io"
+    secrets:
+      SONAR_TOKEN:
+        description: "SonarQube/SonarCloud Token"
+        required: true
+      SONAR_PROJECT_KEY:
+        description: "SonarQube/SonarCloud Project Key (optional)"
+        required: false
+      SONAR_ORG_KEY:
+        description: "SonarQube/SonarCloud Organization Key (optional)"
+        required: false
+
+jobs:
+  sonarqube:
+    name: SonarQube Scan - ${{ inputs.service_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube/SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: ${{ inputs.service_path }}
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY || format('buiducthien090605-project-{0}', inputs.service_name) }}
+            -Dsonar.projectName=${{ inputs.service_name }}
+            -Dsonar.sources=.
+            -Dsonar.host.url=${{ inputs.sonar_host_url }}
+            ${{ secrets.SONAR_ORG_KEY && format('-Dsonar.organization={0}', secrets.SONAR_ORG_KEY) || '' }}
