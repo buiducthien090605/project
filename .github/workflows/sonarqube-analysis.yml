@@ -49,4 +49,4 @@ jobs:
             -Dsonar.projectName=${{ inputs.service_name }}
             -Dsonar.sources=.
             -Dsonar.host.url=${{ inputs.sonar_host_url }}
-            ${{ secrets.SONAR_ORG_KEY && format('-Dsonar.organization={0}', secrets.SONAR_ORG_KEY) || '' }}
+            -Dsonar.organization=${{ secrets.SONAR_ORG_KEY || 'buiducthien090605' }}

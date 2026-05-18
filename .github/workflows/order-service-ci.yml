@@ -67,7 +67,7 @@ jobs:
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY || format('buiducthien090605-project-{0}', env.SERVICE_NAME) }}
             -Dsonar.projectName=${{ env.SERVICE_NAME }}
             -Dsonar.sources=.
-            ${{ secrets.SONAR_ORG_KEY && format('-Dsonar.organization={0}', secrets.SONAR_ORG_KEY) || '' }}
+            -Dsonar.organization=${{ secrets.SONAR_ORG_KEY || 'buiducthien090605' }}
 
       - name: Run Snyk Scan
         env:
