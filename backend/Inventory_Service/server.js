@@ -44,4 +44,5 @@ const PORT = process.env.PORT || 3003;
 app.listen(PORT, () => {
   console.log(`Inventory Service running on port ${PORT}`);
   console.log(`Swagger Docs available at http://localhost:${PORT}/api-docs`);
+  console.log("Inventory Service: CI Path triggers verification - All 3 modified!");
 });
