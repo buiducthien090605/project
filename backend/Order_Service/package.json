@@ -14,9 +14,9 @@
   "type": "commonjs",
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/auto-instrumentations-node": "^0.74.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.216.0",
-    "@opentelemetry/sdk-node": "^0.216.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.76.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
+    "@opentelemetry/sdk-node": "^0.218.0",
     "amqplib": "^1.0.3",
     "axios": "^1.14.0",
     "cors": "^2.8.6",
