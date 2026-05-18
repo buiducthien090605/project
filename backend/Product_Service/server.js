@@ -39,5 +39,5 @@ const port = process.env.PORT || 3001
 app.listen(port, () => {
     console.log(`Product Service runing on port ${port}`)
     console.log(`Swagger Docs available at http://localhost:${port}/api-docs`)
-    console.log("Product Service: CI Path triggers verification - All 3 modified!")
+    console.log("Product Service: CI Path triggers verification - 2/3 modified!")
 })
