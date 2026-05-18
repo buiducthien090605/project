@@ -1,3 +1,4 @@
+// CI Path-Trigger Verification: Product Service
 require("./tracing");
 require("dotenv").config()
 const express = require("express")
