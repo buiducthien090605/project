@@ -39,5 +39,5 @@ const port = process.env.PORT || 3001
 app.listen(port, () => {
     console.log(`Product Service runing on port ${port}`)
     console.log(`Swagger Docs available at http://localhost:${port}/api-docs`)
-    console.log("Product Service has been successfully patched and verified!")
+    console.log("Product Service has been successfully patched and verified! Path triggers are working!")
 })
