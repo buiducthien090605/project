@@ -1,0 +1,20 @@
+apiVersion: v2
+name: ecom-app
+description: E-Commerce microservices platform deployed with Helm, Argo CD, and Argo Rollouts
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: product-service
+    version: 1.0.0
+    condition: product-service.enabled
+  - name: order-service
+    version: 1.0.0
+    condition: order-service.enabled
+  - name: inventory-service
+    version: 1.0.0
+    condition: inventory-service.enabled
+  - name: rabbitmq
+    version: 1.0.0
+    condition: rabbitmq.enabled

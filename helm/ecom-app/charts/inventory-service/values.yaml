@@ -1,0 +1,24 @@
+replicaCount: 2
+containerPort: 3003
+
+image:
+  repository: my-inventory-service
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 3003
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "250m"
+    memory: "256Mi"
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilization: 60

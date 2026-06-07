@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ecom-app
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: >-
+      product=docker.io/buiducthien090605/my-product-service,
+      order=docker.io/buiducthien090605/my-order-service,
+      inventory=docker.io/buiducthien090605/my-inventory-service
+    argocd-image-updater.argoproj.io/product.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/order.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/inventory.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/product.helm.image-name: product-service.image.repository
+    argocd-image-updater.argoproj.io/product.helm.image-tag: product-service.image.tag
+    argocd-image-updater.argoproj.io/order.helm.image-name: order-service.image.repository
+    argocd-image-updater.argoproj.io/order.helm.image-tag: order-service.image.tag
+    argocd-image-updater.argoproj.io/inventory.helm.image-name: inventory-service.image.repository
+    argocd-image-updater.argoproj.io/inventory.helm.image-tag: inventory-service.image.tag
+    argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
+    argocd-image-updater.argoproj.io/write-back-target: helmvalues:helm/ecom-app/values.yaml
+    argocd-image-updater.argoproj.io/git-branch: main
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/buiducthien090605/project.git
+    targetRevision: main
+    path: helm/ecom-app
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

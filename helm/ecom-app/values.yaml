@@ -1,0 +1,164 @@
+nameOverride: ""
+fullnameOverride: ""
+
+namespaceOverride: default
+
+global:
+  imageRegistry: docker.io
+  imageOwner: buiducthien090605
+  imagePullPolicy: Always
+
+  serviceHost: api.ecom.local
+  ingressClassName: nginx
+
+  otel:
+    exporterEndpoint: http://jaeger:4318/v1/traces
+
+  rabbitmq:
+    url: amqp://rabbitmq:5672
+
+  storageClass:
+    name: ecom-storage
+    create: true
+    provisioner: driver.longhorn.io
+    reclaimPolicy: Retain
+    volumeBindingMode: Immediate
+    allowVolumeExpansion: true
+    annotations: {}
+    parameters:
+      numberOfReplicas: "2"
+      staleReplicaTimeout: "2880"
+
+configmap:
+  productService:
+    port: "3001"
+    otelServiceName: product-service
+  orderService:
+    port: "3002"
+    otelServiceName: order-service
+    productServiceUrl: http://product-service:3001
+  inventoryService:
+    port: "3003"
+    otelServiceName: inventory-service
+
+secrets:
+  mongodb:
+    productUri: mongodb://<product-user>:<product-password>@mongodb.example.local:27017/productdb
+    orderUri: mongodb://<order-user>:<order-password>@mongodb.example.local:27017/orderdb
+    inventoryUri: mongodb://<inventory-user>:<inventory-password>@mongodb.example.local:27017/inventorydb
+
+product-service:
+  enabled: true
+  replicaCount: 2
+  containerPort: 3001
+  image:
+    repository: my-product-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 3001
+    canaryPort: 3001
+  ingress:
+    enabled: true
+    path: /api/products
+    pathType: Prefix
+    annotations: {}
+  rollout:
+    enabled: true
+    steps:
+      - setWeight: 20
+      - pause:
+          duration: 60s
+      - setWeight: 60
+      - pause:
+          duration: 60s
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 60
+
+order-service:
+  enabled: true
+  replicaCount: 2
+  containerPort: 3002
+  image:
+    repository: my-order-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 3002
+    canaryPort: 3002
+  ingress:
+    enabled: true
+    path: /api/orders
+    pathType: Prefix
+    annotations: {}
+  rollout:
+    enabled: true
+    steps:
+      - setWeight: 20
+      - pause:
+          duration: 60s
+      - setWeight: 60
+      - pause:
+          duration: 60s
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 60
+
+inventory-service:
+  enabled: true
+  replicaCount: 2
+  containerPort: 3003
+  image:
+    repository: my-inventory-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 3003
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 60
+
+rabbitmq:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: rabbitmq
+    tag: 3.13-management-alpine
+  service:
+    type: ClusterIP
+    amqpPort: 5672
+    managementPort: 15672
+  persistence:
+    enabled: true
+    existingClaim: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi

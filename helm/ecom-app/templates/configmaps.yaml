@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+  labels:
+    {{- include "ecom-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: product-service
+data:
+  PORT: {{ .Values.configmap.productService.port | quote }}
+  OTEL_SERVICE_NAME: {{ .Values.configmap.productService.otelServiceName | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.global.otel.exporterEndpoint | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-service-config
+  labels:
+    {{- include "ecom-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: order-service
+data:
+  PORT: {{ .Values.configmap.orderService.port | quote }}
+  OTEL_SERVICE_NAME: {{ .Values.configmap.orderService.otelServiceName | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.global.otel.exporterEndpoint | quote }}
+  PRODUCT_SERVICE_URL: {{ .Values.configmap.orderService.productServiceUrl | quote }}
+  RABBITMQ_URL: {{ .Values.global.rabbitmq.url | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-service-config
+  labels:
+    {{- include "ecom-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: inventory-service
+data:
+  PORT: {{ .Values.configmap.inventoryService.port | quote }}
+  OTEL_SERVICE_NAME: {{ .Values.configmap.inventoryService.otelServiceName | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.global.otel.exporterEndpoint | quote }}
+  RABBITMQ_URL: {{ .Values.global.rabbitmq.url | quote }}

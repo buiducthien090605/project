@@ -1,0 +1,41 @@
+replicaCount: 2
+containerPort: 3001
+
+image:
+  repository: my-product-service
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 3001
+  canaryPort: 3001
+
+ingress:
+  enabled: true
+  path: /api/products
+  pathType: Prefix
+  annotations: {}
+
+rollout:
+  enabled: true
+  steps:
+    - setWeight: 20
+    - pause:
+        duration: 60s
+    - setWeight: 60
+    - pause:
+        duration: 60s
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "250m"
+    memory: "256Mi"
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilization: 60

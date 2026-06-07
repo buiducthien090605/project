@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: product-service
+  labels:
+    {{- include "ecom-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: product-service
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: product-service
+  strategy:
+    canary:
+      stableService: product-service
+      canaryService: product-service-canary
+      trafficRouting:
+        nginx:
+          stableIngress: product-service-ingress
+      steps:
+        {{- toYaml .Values.rollout.steps | nindent 8 }}
+  template:
+    metadata:
+      labels:
+        app: product-service
+        app.kubernetes.io/component: product-service
+    spec:
+      containers:
+        - name: product-service
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.global.imageOwner }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+          envFrom:
+            - configMapRef:
+                name: product-service-config
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secrets
+                  key: PRODUCT_MONGO_URI
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: 15
+            periodSeconds: 10

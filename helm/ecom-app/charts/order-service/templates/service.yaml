@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  labels:
+    {{- include "ecom-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: order-service
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: order-service
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.containerPort }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service-canary
+  labels:
+    {{- include "ecom-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: order-service
+    rollouts.argoproj.io/service-role: canary
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: order-service
+  ports:
+    - name: http
+      port: {{ .Values.service.canaryPort }}
+      targetPort: {{ .Values.containerPort }}

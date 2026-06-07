@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: rabbitmq
+  tag: 3.13-management-alpine
+
+service:
+  type: ClusterIP
+  amqpPort: 5672
+  managementPort: 15672
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
