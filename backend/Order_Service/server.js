@@ -56,6 +56,14 @@ app.get("/", (req, res) => {
   res.send("Order Service is running");
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "OK",
+    service: "order-service",
+    time: new Date().toISOString(),
+  });
+});
+
 const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => {
   console.log(`Order Service running on port ${PORT}`);

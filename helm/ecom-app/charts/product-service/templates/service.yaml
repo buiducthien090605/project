@@ -7,8 +7,6 @@ metadata:
     app.kubernetes.io/component: product-service
 spec:
   type: {{ .Values.service.type }}
-  selector:
-    app: product-service
   ports:
     - name: http
       port: {{ .Values.service.port }}
@@ -24,8 +22,6 @@ metadata:
     rollouts.argoproj.io/service-role: canary
 spec:
   type: {{ .Values.service.type }}
-  selector:
-    app: product-service
   ports:
     - name: http
       port: {{ .Values.service.canaryPort }}

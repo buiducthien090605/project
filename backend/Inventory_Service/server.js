@@ -40,6 +40,14 @@ app.get("/", (req, res) => {
   res.send("Inventory Service is running");
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "OK",
+    service: "inventory-service",
+    time: new Date().toISOString(),
+  });
+});
+
 const PORT = process.env.PORT || 3003;
 app.listen(PORT, () => {
   console.log(`Inventory Service running on port ${PORT}`);

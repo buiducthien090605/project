@@ -1,587 +1,1109 @@
-# Kịch bản demo và thuyết trình Helm + ArgoCD + Rollouts
+# Kịch bản test yêu cầu của thầy
 
-Tài liệu này là kịch bản nói và thao tác demo dành cho bạn khi trình bày với giảng viên. Mục tiêu là giúp bạn:
+File này **chỉ dùng để test xem project đã đáp ứng yêu cầu của thầy đến đâu**.
 
-- biết nên nói gì trước
-- biết chạy lệnh nào ở từng bước
-- biết giải thích ngắn gọn mà đúng ý
-- biết kết quả mong đợi để đối chiếu
-- biết nếu có lỗi thì chuyển hướng như thế nào
+Không viết dài dòng, không dùng để thuyết trình. Chỉ có:
 
-Tài liệu này không thay thế file hướng dẫn chi tiết. Nó là bản để bạn cầm lên và demo theo.
-
----
-
-## 1. Mục tiêu của buổi demo
-
-Khi demo, bạn cần chứng minh được 5 ý chính:
-
-1. bạn đã đóng gói hệ thống bằng `Helm umbrella chart`
-2. bạn đã triển khai được ứng dụng lên Kubernetes
-3. bạn đã dùng `ArgoCD` để quản lý triển khai theo GitOps
-4. bạn đã dùng `Argo Rollouts` cho cập nhật kiểu canary
-5. bạn đã cấu hình các thành phần thực tế như `ConfigMap`, `Secret`, `PVC`, `Ingress`, `HPA`
-
-Nếu làm được 5 ý này thì bài demo đã đủ mạnh.
+- cần mở gì
+- gõ lệnh gì
+- nhìn kết quả gì
+- nếu ra như vậy thì kết luận đạt hay chưa
 
 ---
 
-## 2. Chuẩn bị trước khi demo
+# 0. Bắt đầu từ đâu nếu vừa mở máy lại hoặc đang dùng máy mới
 
-Bạn nên chuẩn bị trước các thứ sau:
+Phần này dành cho 2 tình huống:
 
-- Docker Desktop đang mở
-- Kubernetes trong Docker Desktop đang bật
-- PowerShell mở sẵn tại thư mục project
-- ArgoCD đã cài xong nếu bạn định demo UI
-- nếu demo web UI thì mở sẵn trình duyệt
-- nếu demo ingress thì đã thêm `api.ecom.local` vào file hosts
+1. **Bạn vừa bật máy lại** và muốn test đồ án tiếp.
+2. **Bạn đang dùng máy mới** hoặc máy khác, vừa pull code project về.
 
-### Lệnh kiểm tra nhanh trước giờ demo
+Nếu bạn đã làm project trên máy này rồi và mọi thứ đang chạy sẵn, bạn vẫn nên đọc nhanh phần này để biết phải mở gì trước.
+
+---
+
+## 0.1. Bạn cần có những thứ gì trên máy
+
+Trên máy Windows 11, để test được project này, tối thiểu nên có:
+
+- **Git**
+- **Docker Desktop**
+- **Kubernetes** trong Docker Desktop
+- **kubectl**
+- **Helm**
+- **Cursor** hoặc **VS Code**
+- **Trình duyệt** như Chrome hoặc Edge
+- **Tài khoản GitHub** để pull code và xem GitHub Actions
+
+---
+
+## 0.2. Nếu là máy mới, kiểm tra xem đã cài Git chưa
+
+### Cách làm
+
+1. Nhấn nút **Start**.
+2. Gõ:
+
+```text
+PowerShell
+```
+
+3. Mở **PowerShell**.
+4. Gõ lệnh này:
+
+```powershell
+git --version
+```
+
+### Nếu thấy ra phiên bản
+
+Ví dụ kiểu:
+
+```text
+git version 2.xx.x.windows.x
+```
+
+thì nghĩa là **đã có Git**.
+
+### Nếu báo lỗi không nhận `git`
+
+Bạn cần cài Git.
+
+### Cách cài Git
+
+1. Mở trình duyệt.
+2. Vào link:
+
+[https://git-scm.com/download/win](https://git-scm.com/download/win)
+
+3. Tải Git về.
+4. Mở file cài đặt.
+5. Cứ bấm **Next** liên tục.
+6. Tới cuối bấm **Install**.
+7. Cài xong bấm **Finish**.
+8. Đóng PowerShell cũ.
+9. Mở PowerShell mới.
+10. Gõ lại:
+
+```powershell
+git --version
+```
+
+---
+
+## 0.3. Nếu là máy mới, kiểm tra xem đã cài Docker Desktop chưa
+
+### Cách làm
+
+1. Nhấn **Start**.
+2. Gõ:
+
+```text
+Docker Desktop
+```
+
+### Nếu thấy ứng dụng hiện ra
+
+Bấm mở nó.
+
+### Nếu không thấy
+
+Bạn cần cài Docker Desktop.
+
+### Cách cài Docker Desktop
+
+1. Mở trình duyệt.
+2. Vào link:
+
+[https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
+
+3. Tải Docker Desktop cho Windows.
+4. Chạy file cài đặt.
+5. Cứ làm theo hướng dẫn trên màn hình.
+6. Nếu máy yêu cầu restart thì restart máy.
+7. Mở lại Docker Desktop sau khi cài xong.
+
+---
+
+## 0.4. Bật Kubernetes trong Docker Desktop
+
+### Cách làm
+
+1. Mở **Docker Desktop**.
+2. Nhìn cột bên trái, bấm **Settings**.
+3. Tìm mục **Kubernetes**.
+4. Bấm vào **Kubernetes**.
+5. Tích bật **Enable Kubernetes** nếu nó chưa bật.
+6. Bấm **Apply & Restart**.
+7. Chờ Docker Desktop khởi động lại.
+
+### Lưu ý
+
+Bước này có thể mất vài phút. Bạn cứ chờ tới khi Docker ổn định hẳn.
+
+---
+
+## 0.5. Kiểm tra `kubectl`
+
+Mở PowerShell rồi gõ:
+
+```powershell
+kubectl version --client
+```
+
+### Nếu thấy ra phiên bản
+
+Nghĩa là máy đã có `kubectl`.
+
+### Nếu báo lỗi không nhận `kubectl`
+
+Thường khi cài Docker Desktop và bật Kubernetes thì `kubectl` sẽ có sẵn.
+
+Bạn thử:
+
+1. đóng PowerShell
+2. mở PowerShell lại
+3. gõ lại:
+
+```powershell
+kubectl version --client
+```
+
+Nếu vẫn lỗi thì bạn cài `kubectl` theo tài liệu chính thức:
+
+[https://kubernetes.io/docs/tasks/tools/install-kubectl-windows/](https://kubernetes.io/docs/tasks/tools/install-kubectl-windows/)
+
+---
+
+## 0.6. Kiểm tra Helm
+
+Trong PowerShell, gõ:
+
+```powershell
+helm version
+```
+
+### Nếu thấy ra phiên bản
+
+Nghĩa là đã có Helm.
+
+### Nếu báo lỗi không nhận `helm`
+
+Bạn cần cài Helm.
+
+### Cách cài Helm trên Windows
+
+Mở link:
+
+[https://helm.sh/docs/intro/install/](https://helm.sh/docs/intro/install/)
+
+Nếu bạn đã có `winget`, cách dễ nhất là gõ:
+
+```powershell
+winget install Helm.Helm
+```
+
+Cài xong:
+
+1. đóng PowerShell
+2. mở lại PowerShell
+3. gõ:
+
+```powershell
+helm version
+```
+
+---
+
+## 0.7. Cài Cursor hoặc VS Code nếu máy mới chưa có
+
+### Nếu dùng Cursor
+
+Vào link:
+
+[https://www.cursor.com/](https://www.cursor.com/)
+
+Tải về và cài.
+
+### Nếu dùng VS Code
+
+Vào link:
+
+[https://code.visualstudio.com/](https://code.visualstudio.com/)
+
+Tải về và cài.
+
+---
+
+## 0.8. Lấy code project về máy mới
+
+Nếu máy mới chưa có source code, bạn làm như sau.
+
+### Bước 1: tạo thư mục GitHub trong Documents
+
+Mở PowerShell và gõ:
+
+```powershell
+cd C:\Users\DELL\Documents
+mkdir GitHub
+cd GitHub
+```
+
+### Bước 2: clone project
+
+Gõ:
+
+```powershell
+git clone https://github.com/buiducthien090605/project.git
+```
+
+### Bước 3: vào thư mục project
+
+Gõ:
+
+```powershell
+cd .\project
+```
+
+### Bước 4: kiểm tra code đã về chưa
+
+Gõ:
+
+```powershell
+dir
+```
+
+### Bạn cần thấy các thư mục như
+
+- `backend`
+- `docs`
+- `helm`
+- `.github`
+- `argocd`
+
+---
+
+## 0.9. Nếu không phải clone mới mà chỉ là pull code mới nhất
+
+Nếu project đã có sẵn trên máy rồi, bạn chỉ cần cập nhật code.
+
+### Cách làm
+
+Mở PowerShell rồi gõ:
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project
+git pull
+```
+
+### Nếu có lỗi do local changes
+
+Gõ:
+
+```powershell
+git status
+```
+
+Nếu bạn thấy có file đang sửa dang dở thì đừng kéo bừa. Lúc đó bạn nên kiểm tra lại trước khi `pull`.
+
+---
+
+## 0.10. Mở project trong Cursor
+
+### Cách làm
+
+1. Mở Cursor.
+2. Bấm **File**.
+3. Bấm **Open Folder**.
+4. Chọn:
+
+```text
+C:\Users\DELL\Documents\GitHub\project
+```
+
+5. Bấm **Select Folder**.
+
+---
+
+## 0.11. Mở PowerShell đúng thư mục project
+
+Gõ:
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project
+```
+
+---
+
+## 0.12. Kiểm tra các công cụ một lượt trước khi test
+
+Gõ lần lượt từng lệnh này:
+
+```powershell
+git --version
+kubectl version --client
+helm version
+docker --version
+```
+
+## Nếu tất cả đều ra phiên bản
+
+Kết luận:
+
+- máy đã có đủ công cụ cơ bản để test project
+
+---
+
+## 0.13. Nếu vừa mở máy lại thì phải mở gì trước
+
+Nếu bạn **không dùng máy mới**, chỉ là vừa bật máy lại, thì làm đúng thứ tự này:
+
+1. Mở **Docker Desktop**
+2. Chờ Docker Desktop ổn định
+3. Mở **Cursor**
+4. Mở thư mục project
+5. Mở **PowerShell**
+6. Gõ:
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project
+git pull
+```
+
+7. Gõ:
 
 ```powershell
 kubectl get nodes
-kubectl get pods -n argocd
-kubectl get pods -n argo-rollouts
-kubectl get pods -n ingress-nginx
 ```
 
-### Kết quả mong đợi
-- node ở trạng thái `Ready`
-- pod của `argocd`, `argo-rollouts`, `ingress-nginx` đang chạy
-
-### Nếu có lỗi ngay trước giờ demo
-- nếu node chưa `Ready`: mở Docker Desktop và chờ
-- nếu pod ArgoCD chưa lên: chờ thêm hoặc cài lại script
-- nếu ingress chưa lên: đừng demo ingress, chuyển sang demo Helm và ArgoCD trước
+8. Nếu node `Ready` thì mới bắt đầu test tiếp
 
 ---
 
-## 3. Cấu trúc buổi demo nên chia thế nào
+# 1. Mục tiêu
 
-Bạn nên demo theo thứ tự này:
+Sau khi làm hết file này, bạn sẽ tự trả lời được:
 
-### Phần 1: giới thiệu kiến trúc
-### Phần 2: chứng minh chart Helm hợp lệ
-### Phần 3: chứng minh deploy được lên Kubernetes
-### Phần 4: chứng minh có HPA, PVC, Ingress, Rollout
-### Phần 5: chứng minh GitOps bằng ArgoCD
-### Phần 6: nếu còn thời gian thì demo rollout update image
-
-Đây là thứ tự an toàn nhất.
-
----
-
-## 4. Kịch bản mở đầu bạn có thể nói
-
-Bạn có thể nói gần như nguyên văn như sau:
-
-"Trong bài này, em triển khai hệ thống e-commerce microservices bằng Kubernetes. Em dùng Helm theo mô hình umbrella chart để quản lý toàn bộ hệ thống. Trong đó product-service và order-service dùng Argo Rollouts để hỗ trợ canary deployment, inventory-service dùng deployment thông thường, còn RabbitMQ có persistent volume claim để lưu trữ dữ liệu. Trên đó em dùng ArgoCD để triển khai theo mô hình GitOps, tức là cấu hình được quản lý trên Git và đồng bộ tự động xuống cluster."
-
-Nếu muốn nói ngắn hơn:
-
-"Bài của em dùng Helm để đóng gói, dùng ArgoCD để GitOps, dùng Argo Rollouts để canary deployment và có đủ các thành phần thực tế như ConfigMap, Secret, PVC, Ingress, HPA."
+- đã tách `CI` và `CD` chưa
+- đã có workflow riêng cho từng service chưa
+- có reusable workflow chưa
+- có SonarQube / Snyk / Trivy / Quality Gate chưa
+- có ArgoCD chưa
+- có Argo Rollouts canary hoặc blue-green chưa
+- có Helm chưa
+- có ConfigMap / Secret / PVC / Ingress / HPA chưa
+- có ArgoCD Image Updater chưa
+- có distributed storage kiểu Longhorn hoặc Rook chưa
 
 ---
 
-## 5. Phần 1: Giới thiệu cấu trúc project
+# 2. Trước khi test cần mở gì
 
-### Bạn nói gì
+Mở 3 thứ này:
 
-"Đây là cấu trúc chính của project. Chart tổng nằm ở `helm/ecom-app`, còn bên trong có các subchart cho từng service. Các tài nguyên dùng chung như ConfigMap, Secret và StorageClass nằm ở chart cha. Phần ArgoCD nằm trong thư mục `argocd`."
+1. **Cursor** mở thư mục project
+2. **PowerShell**
+3. **Trình duyệt** để mở GitHub nếu cần
 
-### Nếu muốn chỉ file để nói
-Bạn có thể mở hoặc chỉ vào các file sau:
+Project của bạn ở:
+
+```text
+C:\Users\DELL\Documents\GitHub\project
+```
+
+Trong PowerShell, gõ:
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project
+```
+
+---
+
+# 3. Test điều kiện nền trước
+
+## 3.1. Kiểm tra Kubernetes có chạy không
+
+Gõ:
+
+```powershell
+kubectl get nodes
+```
+
+## Kết quả mong đợi
+
+- có ít nhất 1 node
+- trạng thái `Ready`
+
+## Nếu đúng
+
+Kết luận:
+
+- máy đang có cluster để test
+
+---
+
+## 3.2. Kiểm tra namespace cần thiết
+
+Gõ:
+
+```powershell
+kubectl get ns
+```
+
+## Kết quả mong đợi
+
+Có các namespace như:
+
+- `default`
+- `argocd`
+- `argo-rollouts`
+- `ingress-nginx`
+
+## Nếu đúng
+
+Kết luận:
+
+- môi trường nền cho ArgoCD, Rollouts, Ingress đã có
+
+---
+
+# 4. Test yêu cầu: CI tách riêng với CD
+
+## 4.1. Mở file cần xem
+
+Trong Cursor, mở các file:
+
+- `.github/workflows/main-ci.yml`
+- `.github/workflows/product-service-ci.yml`
+- `.github/workflows/order-service-ci.yml`
+- `.github/workflows/inventory-service-ci.yml`
+- `argocd/argocd-app.yaml`
+
+## 4.2. Bạn cần nhìn gì
+
+### Ở GitHub Actions
+
+- có workflow CI trong `.github/workflows`
+- có workflow riêng cho từng service
+
+### Ở ArgoCD
+
+- có file `argocd/argocd-app.yaml`
+- file đó có `kind: Application`
+
+## Nếu đúng
+
+Kết luận:
+
+- `CI` và `CD` đã được tách theo đúng hướng
+- `CI` nằm ở GitHub Actions
+- `CD` nằm ở ArgoCD
+
+---
+
+# 5. Test yêu cầu: mỗi service là một workflow riêng và được gọi trong main workflow
+
+## 5.1. Kiểm tra file workflow riêng
+
+Trong Cursor, xác nhận có các file:
+
+- `.github/workflows/product-service-ci.yml`
+- `.github/workflows/order-service-ci.yml`
+- `.github/workflows/inventory-service-ci.yml`
+
+## 5.2. Kiểm tra có dùng `workflow_call` không
+
+Mở từng file và nhìn xem có đoạn:
+
+```yaml
+on:
+  workflow_call:
+```
+
+hay không.
+
+## 5.3. Kiểm tra main workflow có gọi các workflow đó không
+
+Mở `main-ci.yml` và tìm các đoạn dạng:
+
+```yaml
+uses: ./.github/workflows/product-service-ci.yml
+uses: ./.github/workflows/order-service-ci.yml
+uses: ./.github/workflows/inventory-service-ci.yml
+```
+
+## Nếu đúng
+
+Kết luận:
+
+- đã có workflow riêng cho từng service
+- main workflow đã gọi lại các workflow đó
+- đạt yêu cầu reusable workflow ở mức service
+
+---
+
+# 6. Test yêu cầu: chỉ service thay đổi mới build lại
+
+## 6.1. Mở file `main-ci.yml`
+
+Bạn tìm phần dùng filter đường dẫn, thường sẽ có các đoạn như:
+
+- `dorny/paths-filter`
+- `backend/Product_Service/**`
+- `backend/Order_Service/**`
+- `backend/Inventory_Service/**`
+
+## 6.2. Bạn cần hiểu kết quả thế nào
+
+Nếu file `main-ci.yml` có logic:
+
+- phát hiện service nào thay đổi
+- chỉ gọi workflow của service đó
+
+thì yêu cầu này coi như đạt về mặt cấu hình.
+
+## Nếu đúng
+
+Kết luận:
+
+- project đã có cơ chế chỉ build service thay đổi
+
+## Nếu muốn test thực tế thêm
+
+Bạn có thể:
+
+1. chỉ sửa 1 file trong `backend/Product_Service`
+2. push lên GitHub
+3. vào tab **Actions** trên GitHub
+4. kiểm tra xem chỉ `product-service-ci` chạy hay không
+
+---
+
+# 7. Test yêu cầu: có SonarQube, Snyk, Trivy, Quality Gate
+
+## 7.1. Kiểm tra file workflow liên quan
+
+Trong Cursor, xem có các file:
+
+- `.github/workflows/sonarqube-analysis.yml`
+- `.github/workflows/snyk-scan.yml`
+- `.github/workflows/trivy-scan.yml`
+
+## 7.2. Kiểm tra trong service workflow có step scan không
+
+Mở một file như `product-service-ci.yml` và tìm các chữ:
+
+- `SonarQube`
+- `Snyk`
+- `Trivy`
+
+## Nếu thấy cả 3
+
+Kết luận:
+
+- project đã có SonarQube
+- project đã có Snyk
+- project đã có Trivy
+
+## 7.3. Kiểm tra `Quality Gate`
+
+Tìm xem có file nào hoặc step nào rõ ràng chứa:
+
+- `quality gate`
+- hoặc bước chặn pipeline theo kết quả Sonar
+
+## Nếu không thấy
+
+Kết luận:
+
+- **chưa có hoặc chưa tách rõ Quality Gate**
+
+## Đánh giá mục này
+
+- SonarQube: có
+- Snyk: có
+- Trivy: có
+- Quality Gate: chưa rõ hoặc chưa có riêng
+
+---
+
+# 8. Test yêu cầu: có reusable workflows riêng cho tool scan
+
+## 8.1. Kiểm tra tồn tại file reusable
+
+Xem có các file:
+
+- `.github/workflows/sonarqube-analysis.yml`
+- `.github/workflows/snyk-scan.yml`
+- `.github/workflows/trivy-scan.yml`
+
+## 8.2. Mở file và kiểm tra có `workflow_call` không
+
+Nếu các file đó có:
+
+```yaml
+on:
+  workflow_call:
+```
+
+thì chúng là reusable workflows.
+
+## 8.3. Kiểm tra service workflow có thực sự gọi lại chúng không
+
+Mở `product-service-ci.yml`, `order-service-ci.yml`, `inventory-service-ci.yml` và xem có `uses:` tới 3 file scan này hay không.
+
+## Kết luận
+
+- nếu file scan riêng có tồn tại: đạt phần tạo reusable workflow
+- nếu service workflow chưa gọi lại chúng: mới đạt một phần
+
+---
+
+# 9. Test yêu cầu: dùng Helm để quản lý
+
+## 9.1. Kiểm tra thư mục Helm
+
+Trong Cursor, xem có thư mục:
+
+- `helm/ecom-app`
+
+## 9.2. Kiểm tra các file quan trọng
+
+Xem có:
 
 - `helm/ecom-app/Chart.yaml`
 - `helm/ecom-app/values.yaml`
-- `helm/ecom-app/templates/configmaps.yaml`
-- `helm/ecom-app/templates/secrets.yaml`
-- `helm/ecom-app/templates/storageclass.yaml`
-- `argocd/argocd-app.yaml`
+- `helm/ecom-app/templates`
 
-### Ý cần nhấn mạnh
-- có chart cha và chart con
-- không deploy kiểu file YAML rời rạc
-- có cấu trúc rõ ràng, dễ quản lý
+## 9.3. Chạy lint Helm
 
----
-
-## 6. Phần 2: Chứng minh Helm chart hợp lệ
-
-### Bạn nói gì
-
-"Đầu tiên em kiểm tra chart Helm có hợp lệ không bằng lint và render manifest. Nếu bước này pass thì nghĩa là cấu trúc chart ổn và có thể sinh ra manifest Kubernetes hợp lệ."
-
-### Lệnh nên chạy
+Trong PowerShell, gõ:
 
 ```powershell
-cd E:\project
 helm lint .\helm\ecom-app
 ```
 
-### Kết quả mong đợi
+## Kết quả mong đợi
+
 - không có lỗi
-- tốt nhất là hiện `0 chart(s) failed`
+- tốt nhất thấy `0 chart(s) failed`
 
-### Câu giải thích sau khi chạy xong
+## 9.4. Render thử chart
 
-"Kết quả này cho thấy chart không lỗi cú pháp Helm."
-
-### Lệnh tiếp theo
+Gõ:
 
 ```powershell
 helm template ecom-app .\helm\ecom-app
 ```
 
-### Kết quả mong đợi
-Render ra các resource như:
+## Kết quả mong đợi
+
+Nhìn thấy các `kind:` như:
+
 - `ConfigMap`
 - `Secret`
-- `StorageClass`
-- `PVC`
 - `Service`
+- `Deployment` hoặc `Rollout`
 - `Ingress`
-- `Deployment`
-- `Rollout`
-- `HPA`
+- `HorizontalPodAutoscaler`
 
-### Câu giải thích sau khi chạy xong
+## Nếu đúng
 
-"Bước này cho thấy chart Helm sinh ra được toàn bộ manifest Kubernetes cần thiết cho hệ thống."
+Kết luận:
+
+- project đang dùng Helm để quản lý triển khai
 
 ---
 
-## 7. Phần 3: Chứng minh deploy được bằng Helm
+# 10. Test yêu cầu: có ConfigMap, Secret, PVC, Ingress, HPA
 
-### Bạn nói gì
+## 10.1. Triển khai chart nếu cần
 
-"Sau khi kiểm tra chart hợp lệ, em triển khai trực tiếp bằng Helm để chứng minh hệ thống có thể chạy được trên Kubernetes."
-
-### Lệnh nên chạy
-
-```powershell
-helm install ecom-app .\helm\ecom-app -n default --create-namespace
-```
-
-### Nếu bạn đã cài trước đó rồi
-Nếu release đã tồn tại, thay bằng:
+Nếu chưa cài hoặc muốn cập nhật, gõ:
 
 ```powershell
 helm upgrade --install ecom-app .\helm\ecom-app -n default --create-namespace
 ```
 
-### Câu giải thích sau khi chạy
+---
 
-"Lệnh này sẽ cài toàn bộ hệ thống từ chart cha, đồng thời kéo theo các subchart cho product, order, inventory và rabbitmq."
+## 10.2. Kiểm tra ConfigMap
 
-### Lệnh kiểm tra tổng quát
+Gõ:
 
 ```powershell
-kubectl get all -n default
+kubectl get configmap -n default
 ```
 
-### Kết quả mong đợi
-- có pod
-- có service
-- có deployment hoặc rollout
+## Kết quả mong đợi
 
-### Câu giải thích
+Có thể thấy:
 
-"Ở đây có thể thấy các service chính đã được tạo và ứng dụng đã được triển khai xuống cluster."
+- `product-service-config`
+- `order-service-config`
+- `inventory-service-config`
+
+## Nếu đúng
+
+Kết luận:
+
+- có ConfigMap
 
 ---
 
-## 8. Phần 4: Chứng minh các thành phần quan trọng tồn tại
+## 10.3. Kiểm tra Secret
 
-Bạn nên chia phần này thành 4 mục nhỏ: PVC, HPA, Ingress, Rollout.
+Gõ:
+
+```powershell
+kubectl get secret -n default
+```
+
+## Kết quả mong đợi
+
+Có secret của app, ví dụ:
+
+- `mongodb-secrets`
+
+## Nếu đúng
+
+Kết luận:
+
+- có Secret
 
 ---
 
-### 8.1 Demo PVC
+## 10.4. Kiểm tra PVC
 
-#### Bạn nói gì
-
-"RabbitMQ cần lưu dữ liệu nên em cấu hình persistent volume claim để khi pod khởi động lại thì dữ liệu không bị mất ngay."
-
-#### Lệnh nên chạy
+Gõ:
 
 ```powershell
 kubectl get pvc -n default
 ```
 
-#### Kết quả mong đợi
-- có `rabbitmq-data-pvc`
+## Kết quả mong đợi
+
+- có PVC
 - trạng thái tốt nhất là `Bound`
 
-#### Câu giải thích
+## Nếu đúng
 
-"PVC ở trạng thái Bound nghĩa là phần lưu trữ đã được cấp phát thành công cho RabbitMQ."
+Kết luận:
+
+- có persistent storage ở mức workload
 
 ---
 
-### 8.2 Demo HPA
+## 10.5. Kiểm tra Ingress
 
-#### Bạn nói gì
+Gõ:
 
-"Để hệ thống có khả năng mở rộng theo tải, em cấu hình HPA cho các service chính."
+```powershell
+kubectl get ingress -n default
+```
 
-#### Lệnh nên chạy
+## Kết quả mong đợi
+
+- có ingress cho service cần public
+
+## Nếu đúng
+
+Kết luận:
+
+- có Ingress
+
+---
+
+## 10.6. Kiểm tra HPA
+
+Gõ:
 
 ```powershell
 kubectl get hpa -n default
 ```
 
-#### Kết quả mong đợi
-Có:
+## Kết quả mong đợi
+
+Có thể thấy:
+
 - `product-service-hpa`
 - `order-service-hpa`
 - `inventory-service-hpa`
 
-#### Câu giải thích
+## Nếu đúng
 
-"Các HPA này sẽ cho phép service tự động tăng hoặc giảm số pod dựa trên mức sử dụng CPU."
+Kết luận:
+
+- có HPA
 
 ---
 
-### 8.3 Demo Ingress
+# 11. Test yêu cầu: có Argo Rollouts canary hoặc blue-green
 
-#### Bạn nói gì
+## 11.1. Kiểm tra namespace argo-rollouts
 
-"Để route request từ bên ngoài vào hệ thống, em dùng NGINX Ingress Controller và tạo ingress cho product-service và order-service."
-
-#### Lệnh nên chạy
+Gõ:
 
 ```powershell
-kubectl get ingress -n default
+kubectl get pods -n argo-rollouts
 ```
 
-#### Kết quả mong đợi
-Có:
-- `product-service-ingress`
-- `order-service-ingress`
+## Kết quả mong đợi
 
-#### Câu giải thích
-
-"Ingress giúp định tuyến request theo host và path đến đúng service phía sau."
+- controller của argo-rollouts đang chạy
 
 ---
 
-### 8.4 Demo Rollout
+## 11.2. Kiểm tra rollout trong app
 
-#### Bạn nói gì
-
-"Hai service quan trọng là product-service và order-service được triển khai bằng Argo Rollouts thay vì Deployment thường để hỗ trợ canary deployment."
-
-#### Lệnh nên chạy
+Gõ:
 
 ```powershell
 kubectl get rollout -n default
 ```
 
-#### Kết quả mong đợi
-Có:
+## Kết quả mong đợi
+
+Có thể thấy:
+
 - `product-service`
 - `order-service`
 
-#### Nếu máy có CLI rollout
+---
 
-```powershell
-kubectl argo rollouts get rollout product-service -n default
-kubectl argo rollouts get rollout order-service -n default
-```
+## 11.3. Kiểm tra manifest rollout
 
-#### Câu giải thích
+Trong Cursor, mở:
 
-"Rollout cho phép cập nhật phiên bản mới theo từng bước tăng traffic thay vì thay ngay toàn bộ, nhờ đó an toàn hơn."
+- `helm/ecom-app/charts/product-service/templates/rollout.yaml`
+- `helm/ecom-app/charts/order-service/templates/rollout.yaml`
+
+## Bạn cần nhìn gì
+
+Nếu thấy từ:
+
+- `canary:`
+
+thì đang dùng canary.
+
+Nếu thấy từ:
+
+- `blueGreen:`
+
+thì đang dùng blue-green.
+
+## Kết luận
+
+- nếu có `canary:` thì đạt yêu cầu ở mức canary
+- nếu không có `blueGreen:` thì chưa có blue-green
 
 ---
 
-## 9. Phần 5: Demo ArgoCD
+# 12. Test yêu cầu: dùng ArgoCD cho CD
 
-### Bạn nói gì
+## 12.1. Kiểm tra pod ArgoCD
 
-"Sau khi chứng minh hệ thống deploy được bằng Helm, em dùng ArgoCD để quản lý việc triển khai theo mô hình GitOps. Nghĩa là thay vì deploy thủ công, ArgoCD sẽ theo dõi repository Git và tự đồng bộ thay đổi xuống cluster."
-
-### Bước 1: nếu chưa cài ArgoCD thì nói ngắn
-
-"Phần ArgoCD em đã cài bằng script PowerShell có sẵn trong thư mục `argocd`."
-
-### Nếu cần chạy lại script
+Gõ:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\argocd\install-argocd.ps1
+kubectl get pods -n argocd
 ```
 
-### Bước 2: apply Application
+## Kết quả mong đợi
 
-```powershell
-kubectl apply -f .\argocd\argocd-app.yaml
-```
+Có các pod như:
 
-### Bước 3: kiểm tra application
+- `argocd-server`
+- `argocd-repo-server`
+- `argocd-application-controller`
+
+## Nếu đúng
+
+Kết luận:
+
+- ArgoCD đã được cài trên cluster
+
+---
+
+## 12.2. Kiểm tra Application
+
+Gõ:
 
 ```powershell
 kubectl get applications -n argocd
 ```
 
-### Kết quả mong đợi
-- có app `ecom-app`
-- trạng thái `Synced`
-- trạng thái `Healthy`
+## Kết quả mong đợi
 
-### Câu giải thích
+- có application như `ecom-app`
 
-"Điều này cho thấy ArgoCD đã đọc được chart từ Git, render thành công và đồng bộ xuống cluster."
+## Nếu đúng
+
+Kết luận:
+
+- CD bằng ArgoCD đã có cấu hình application
 
 ---
 
-## 10. Phần 6: Demo giao diện ArgoCD
+# 13. Test yêu cầu: có ArgoCD Image Updater
 
-Nếu bạn muốn demo UI thì nên chuẩn bị từ trước.
+## 13.1. Mở file `argocd/argocd-app.yaml`
 
-### Lệnh port-forward
+Bạn nhìn xem có annotation bắt đầu bằng:
+
+- `argocd-image-updater.argoproj.io/`
+
+hay không.
+
+## Nếu thấy
+
+Ví dụ các dòng như:
+
+- `image-list`
+- `update-strategy`
+- `write-back-method`
+- `write-back-target`
+
+thì kết luận:
+
+- project đã có cấu hình ArgoCD Image Updater
+
+## Đánh giá
+
+- có cấu hình: đạt phần cấu hình
+- muốn chắc hoàn toàn thì còn phải test runtime thật
+
+---
+
+# 14. Test yêu cầu: có distributed storage như Longhorn hoặc Rook
+
+## 14.1. Kiểm tra trong cluster
+
+Gõ:
 
 ```powershell
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+kubectl get pods -A
 ```
 
-### Truy cập
-Mở trình duyệt tại:
+## Bạn tìm xem có namespace hoặc pod liên quan:
 
-[https://localhost:8080](https://localhost:8080)
+- `longhorn`
+- `rook`
+- `rook-ceph`
 
-### Bạn nói gì khi mở UI
+hay không.
 
-"Trên giao diện ArgoCD, em có thể thấy trạng thái của application, cây resource bên trong app, và biết resource nào đang healthy hay gặp lỗi. Đây là điểm mạnh của GitOps vì trạng thái mong muốn và trạng thái thực tế được quản lý tập trung."
+## 14.2. Kiểm tra storage class
 
-### Những gì nên chỉ trên UI
-- tên app `ecom-app`
-- trạng thái `Synced`
-- trạng thái `Healthy`
-- các resource con như rollout, service, ingress, pvc
-
----
-
-## 11. Phần 7: Demo thay đổi image để kích hoạt rollout
-
-Đây là phần nâng cao. Nếu không đủ thời gian, bạn có thể chỉ nói mô tả thay vì chạy thật.
-
-### Bạn nói gì
-
-"Để kiểm tra canary deployment, em chỉ cần đổi image tag của service trong file values, sau đó ArgoCD sẽ sync lại và Argo Rollouts sẽ triển khai bản mới theo từng bước."
-
-### Bạn làm gì
-Mở file `helm/ecom-app/values.yaml` và đổi tag image của `product-service` hoặc `order-service`.
-
-Ví dụ ý tưởng:
-- từ `latest` sang `v2`
-
-### Nếu đang demo GitOps đầy đủ
-- commit thay đổi
-- push lên GitHub
-- chờ ArgoCD sync
-
-### Lệnh kiểm tra rollout
+Gõ:
 
 ```powershell
-kubectl argo rollouts get rollout product-service -n default
+kubectl get storageclass
 ```
 
-hoặc nếu không có CLI:
+## Bạn nhìn gì
+
+- nếu chỉ thấy `hostpath` hoặc local storage thông thường thì chưa thể coi là Longhorn/Rook
+- nếu thấy storage class của Longhorn hoặc Rook thì mới tính là có triển khai distributed storage
+
+## Kết luận
+
+- nếu không có Longhorn/Rook: **chưa đạt yêu cầu này**
+
+---
+
+# 15. Test nhanh qua GitHub Actions UI
+
+Nếu muốn test thêm phần CI trên giao diện web:
+
+## 15.1. Mở GitHub repo
+
+Mở link repo của bạn trên trình duyệt.
+
+## 15.2. Bấm vào tab `Actions`
+
+Bạn nhìn xem có các workflow như:
+
+- `Unified Microservices CI Pipeline`
+- `Product Service CI`
+- `Order Service CI`
+- `Inventory Service CI`
+
+## 15.3. Nếu muốn test thật
+
+1. sửa 1 file nhỏ trong đúng 1 service
+2. commit
+3. push lên GitHub
+4. vào `Actions`
+5. kiểm tra chỉ workflow tương ứng chạy
+
+## Nếu đúng
+
+Kết luận:
+
+- cơ chế chỉ build service thay đổi đang hoạt động đúng
+
+---
+
+# 16. Mẫu kết luận cuối cùng sau khi test xong
+
+Sau khi test xong, bạn có thể tự kết luận như sau.
+
+## Đã đạt
+
+- CI và CD tách riêng
+- mỗi service có workflow riêng
+- main workflow gọi workflow từng service
+- có Helm
+- có ArgoCD
+- có Argo Rollouts theo hướng canary
+- có ConfigMap
+- có Secret
+- có PVC
+- có Ingress
+- có HPA
+- có cấu hình ArgoCD Image Updater
+- có SonarQube
+- có Snyk
+- có Trivy
+
+## Đạt một phần
+
+- reusable workflow cho tool scan đã có nhưng có thể chưa được gọi lại triệt để
+- ArgoCD Image Updater có cấu hình nhưng có thể chưa test runtime đầy đủ
+
+## Chưa đạt hoặc chưa rõ
+
+- Quality Gate riêng
+- blue-green deployment
+- distributed storage kiểu Longhorn hoặc Rook
+
+---
+
+# 17. Danh sách lệnh ngắn gọn để test nhanh
 
 ```powershell
-kubectl get rollout -n default
-```
-
-### Kết quả mong đợi
-- rollout nhận phiên bản mới
-- traffic tăng dần theo các step
-- có pause giữa các step
-
-### Câu giải thích
-
-"Cơ chế này giúp giảm rủi ro khi triển khai phiên bản mới vì không đẩy toàn bộ traffic vào bản mới ngay lập tức."
-
----
-
-## 12. Nếu thầy hỏi: tại sao không dùng Deployment hết?
-
-Bạn có thể trả lời:
-
-"Em vẫn dùng Deployment cho inventory-service vì service đó ít quan trọng hơn trong luồng chính. Còn product-service và order-service ảnh hưởng trực tiếp tới nghiệp vụ chính nên em dùng Argo Rollouts để hỗ trợ cập nhật an toàn hơn theo kiểu canary."
-
----
-
-## 13. Nếu thầy hỏi: tại sao dùng Helm?
-
-Bạn có thể trả lời:
-
-"Vì hệ thống có nhiều service và nhiều resource Kubernetes khác nhau. Nếu viết YAML rời sẽ khó quản lý. Helm giúp em gom cấu hình thành chart, dùng values để tái sử dụng, dễ nâng cấp, dễ bảo trì và phù hợp để tích hợp với ArgoCD."
-
----
-
-## 14. Nếu thầy hỏi: tại sao dùng ArgoCD?
-
-Bạn có thể trả lời:
-
-"Vì ArgoCD hỗ trợ triển khai theo GitOps. Toàn bộ cấu hình nằm trên Git nên dễ theo dõi lịch sử thay đổi, dễ rollback, và giảm thao tác thủ công trên cluster. Khi file trên Git đổi thì ArgoCD có thể tự sync xuống cluster."
-
----
-
-## 15. Nếu thầy hỏi: tại sao cần PVC cho RabbitMQ?
-
-Bạn có thể trả lời:
-
-"RabbitMQ là message broker nên cần lưu trữ dữ liệu và trạng thái hàng đợi. Nếu không có PVC thì khi pod restart, dữ liệu có thể mất. PVC giúp dữ liệu tồn tại bền vững hơn so với lưu trực tiếp trong container."
-
----
-
-## 16. Nếu thầy hỏi: HPA hoạt động thế nào?
-
-Bạn có thể trả lời:
-
-"HPA theo dõi metric như CPU và tự động thay đổi số lượng pod. Khi tải tăng thì tăng replica, khi tải giảm thì giảm replica. Điều này giúp hệ thống linh hoạt hơn và tiết kiệm tài nguyên."
-
----
-
-## 17. Nếu thầy hỏi: Image Updater có vai trò gì?
-
-Bạn có thể trả lời:
-
-"ArgoCD Image Updater sẽ theo dõi image mới trên registry, sau đó cập nhật lại tag image trong Git thay vì cập nhật trực tiếp trên cluster. Như vậy vẫn giữ đúng nguyên tắc GitOps: Git là nguồn chân lý duy nhất."
-
----
-
-## 18. Kịch bản dự phòng nếu live demo bị lỗi
-
-Đây là phần rất quan trọng.
-
-### Trường hợp 1: pod chưa Running
-Bạn nói:
-
-"Trong quá trình local demo có thể pod còn đang pull image hoặc chờ storage bind. Tuy nhiên chart đã lint và render thành công, đồng thời cấu trúc triển khai đã đầy đủ. Em có thể kiểm tra tiếp logs hoặc describe để xác định nguyên nhân runtime."
-
-### Trường hợp 2: ingress chưa vào được
-Bạn nói:
-
-"Phần ingress local phụ thuộc ingress controller và file hosts của máy. Nếu local route chưa hoạt động ngay thì em vẫn có thể chứng minh ingress resource đã được tạo đúng và controller đã cài đúng."
-
-### Trường hợp 3: ArgoCD UI không mở kịp
-Bạn nói:
-
-"Nếu UI chưa mở kịp, em vẫn có thể kiểm tra trạng thái application bằng CLI qua `kubectl get applications -n argocd`."
-
-### Trường hợp 4: rollout chưa hiện đẹp
-Bạn nói:
-
-"Rollout cần có thay đổi image thực tế để thể hiện quá trình canary. Nếu chưa đẩy image mới trong lúc demo thì em sẽ trình bày cơ chế hoạt động và chỉ vào cấu hình step trong chart."
-
----
-
-## 19. Kịch bản demo ngắn 3 phút
-
-Nếu thầy cho thời gian rất ngắn, bạn chỉ cần làm như sau.
-
-### Bạn nói
-"Bài của em triển khai hệ thống microservices bằng Helm và Kubernetes. Em dùng umbrella chart để quản lý nhiều service. Product-service và order-service dùng Argo Rollouts để hỗ trợ canary deployment, RabbitMQ dùng PVC để lưu trữ dữ liệu, và em dùng ArgoCD để triển khai theo GitOps từ GitHub xuống cluster."
-
-### Chạy 5 lệnh này
-
-```powershell
-helm lint .\helm\ecom-app
-helm template ecom-app .\helm\ecom-app
-kubectl get all -n default
-kubectl get hpa -n default
-kubectl get rollout -n default
-```
-
-### Nếu còn 1 phút
-
-```powershell
-kubectl get applications -n argocd
-```
-
-### Kết luận
-"Như vậy em đã chứng minh được chart hợp lệ, hệ thống deploy được, có autoscaling, rollout canary và có GitOps với ArgoCD."
-
----
-
-## 20. Kịch bản demo đầy đủ 7 đến 10 phút
-
-### Bước 1: giới thiệu kiến trúc
-Nói 30 đến 45 giây.
-
-### Bước 2: chạy lint và template
-
-```powershell
-helm lint .\helm\ecom-app
-helm template ecom-app .\helm\ecom-app
-```
-
-### Bước 3: kiểm tra resource sau deploy
-
-```powershell
-kubectl get all -n default
-kubectl get ingress -n default
-kubectl get hpa -n default
-kubectl get pvc -n default
-kubectl get rollout -n default
-```
-
-### Bước 4: kiểm tra ArgoCD
-
-```powershell
-kubectl get applications -n argocd
-```
-
-### Bước 5: nếu có UI thì mở UI
-- chỉ trạng thái `Synced`
-- chỉ trạng thái `Healthy`
-- chỉ các resource con
-
-### Bước 6: kết luận
-"Bài của em không chỉ deploy được ứng dụng mà còn tổ chức theo hướng production-like với GitOps, autoscaling, canary deployment và persistent storage."
-
----
-
-## 21. Mẫu câu kết thúc buổi demo
-
-Bạn có thể nói:
-
-"Tóm lại, trong bài này em đã dùng Helm để đóng gói và quản lý hệ thống microservices, dùng ArgoCD để triển khai theo GitOps, dùng Argo Rollouts cho canary deployment ở các service quan trọng, và bổ sung các thành phần thực tế như PVC, Ingress, HPA để hệ thống hoàn chỉnh hơn trên Kubernetes."
-
----
-
-## 22. Checklist trước khi bước vào bảo vệ
-
-- [ ] Docker Desktop đang chạy
-- [ ] Kubernetes đang bật
-- [ ] `kubectl get nodes` ra `Ready`
-- [ ] chart Helm lint pass
-- [ ] app đã deploy được
-- [ ] có `kubectl get all -n default`
-- [ ] có `kubectl get hpa -n default`
-- [ ] có `kubectl get pvc -n default`
-- [ ] có `kubectl get rollout -n default`
-- [ ] nếu demo ArgoCD thì UI đăng nhập được hoặc CLI hoạt động
-- [ ] nếu demo ingress thì file hosts đã sửa
-
----
-
-## 23. 10 lệnh quan trọng nhất nên nhớ
-
-```powershell
-cd E:\project
+cd C:\Users\DELL\Documents\GitHub\project
+git pull
+git --version
+kubectl version --client
+helm version
+docker --version
+kubectl get nodes
+kubectl get ns
+kubectl get pods -n argocd
+kubectl get pods -n argo-rollouts
+kubectl get pods -n ingress-nginx
 helm lint .\helm\ecom-app
 helm template ecom-app .\helm\ecom-app
 helm upgrade --install ecom-app .\helm\ecom-app -n default --create-namespace
-kubectl get all -n default
+kubectl get configmap -n default
+kubectl get secret -n default
+kubectl get pvc -n default
 kubectl get ingress -n default
 kubectl get hpa -n default
-kubectl get pvc -n default
 kubectl get rollout -n default
 kubectl get applications -n argocd
+kubectl get storageclass
+kubectl get pods -A
 ```
-
-Nếu nhớ được 10 lệnh này, bạn đã có thể demo khá ổn.

@@ -1,87 +1,53 @@
-# Hướng dẫn chi tiết cài đặt, triển khai và kiểm thử Helm + ArgoCD trên Windows 11
+# Hướng dẫn triển khai chi tiết dự án `ecom-app` trên Windows 11
 
-Tài liệu này dành cho người mới bắt đầu. Mục tiêu là giúp bạn làm từng bước từ số 0 đến khi:
+Tài liệu này được viết lại theo đúng trạng thái hiện tại của project, dành cho người mới và bám sát những gì đang chạy trong repo này.
 
-- cài được môi trường trên Windows 11
-- chạy được Kubernetes local
+Mục tiêu của tài liệu:
+
+- cài môi trường trên Windows 11
+- chạy Kubernetes local bằng Docker Desktop
+- build và push image backend lên Docker Hub
 - triển khai ứng dụng bằng `Helm`
 - triển khai ứng dụng bằng `ArgoCD`
-- hiểu cách test từng phần
-- biết kết quả mong đợi của từng kịch bản
-- biết cách xử lý những lỗi thường gặp
+- hiểu vai trò của `Argo Rollouts`, `HPA`, `Ingress`, `PVC`
+- biết cách kiểm tra hệ thống sau deploy
+- biết cách xử lý các lỗi thực tế đã gặp trong project này
 
 ---
 
-## 1. Mục tiêu của bài triển khai
+## 1. Tổng quan hệ thống
 
-Sau khi hoàn thành, hệ thống của bạn sẽ có:
+Project hiện tại là một hệ thống e-commerce dạng microservices, gồm:
 
-- `Helm umbrella chart`
-- nhiều `subchart` cho từng service
-- `ConfigMap`
-- `Secret`
-- `PVC`
-- `StorageClass`
-- `Ingress`
-- `HPA`
-- `ArgoCD`
-- `Argo Rollouts`
-- `ArgoCD Image Updater`
+- `product-service`
+- `order-service`
+- `inventory-service`
+- `rabbitmq`
 
-Trong project hiện tại:
+Trong đó:
 
 - `product-service` dùng `Argo Rollout`
 - `order-service` dùng `Argo Rollout`
 - `inventory-service` dùng `Deployment`
-- `rabbitmq` dùng `PVC`
+- `rabbitmq` dùng `Deployment` + `PVC`
+
+Chart Helm chính là `helm/ecom-app`, đây là một `umbrella chart` chứa các subchart cho từng service.
 
 ---
 
-## 2. Bạn cần hiểu rất ngắn gọn các khái niệm
+## 2. Kiến trúc triển khai hiện tại
 
-### 2.1 Helm là gì
-Helm là công cụ giúp đóng gói các file Kubernetes YAML thành một bộ cài đặt có cấu trúc.
+### 2.1 Thành phần chính
 
-Hiểu đơn giản:
-- không cần tự `kubectl apply` từng file rời rạc
-- chỉ cần dùng `helm install`
-- mọi cấu hình nằm trong `values.yaml`
+- `Helm`: dùng để đóng gói và triển khai toàn bộ ứng dụng
+- `ArgoCD`: dùng để đồng bộ từ Git vào Kubernetes theo mô hình GitOps
+- `Argo Rollouts`: dùng để rollout canary cho `product-service` và `order-service`
+- `ArgoCD Image Updater`: dùng để cập nhật image tag trong `values.yaml`
+- `NGINX Ingress Controller`: dùng để route traffic HTTP
+- `HPA`: tự scale pod theo CPU
+- `PVC`: lưu dữ liệu cho RabbitMQ
 
-### 2.2 ArgoCD là gì
-ArgoCD là công cụ GitOps.
-
-Hiểu đơn giản:
-- code cấu hình nằm trên GitHub
-- ArgoCD đọc GitHub
-- nếu file trên Git thay đổi thì ArgoCD tự đồng bộ xuống cluster
-
-### 2.3 Argo Rollouts là gì
-Argo Rollouts giúp cập nhật phiên bản mới một cách an toàn hơn.
-
-Ví dụ:
-- cho 20% traffic vào bản mới trước
-- nếu ổn thì tăng lên 60%
-- rồi mới thay toàn bộ
-
-### 2.4 HPA là gì
-HPA là autoscaling.
-
-Nó sẽ:
-- tăng số pod khi tải tăng
-- giảm số pod khi tải giảm
-
-### 2.5 PVC là gì
-PVC là vùng lưu trữ bền vững cho container.
-
-Ví dụ:
-- RabbitMQ cần lưu dữ liệu
-- nếu không có PVC thì restart pod có thể mất dữ liệu
-
----
-
-## 3. Kiến trúc project hiện tại
-
-Các file quan trọng trong project của bạn:
+### 2.2 Các file quan trọng
 
 - `helm/ecom-app/Chart.yaml`
 - `helm/ecom-app/values.yaml`
@@ -96,88 +62,95 @@ Các file quan trọng trong project của bạn:
 - `argocd/git-credentials-secret.yaml`
 - `argocd/install-argocd.ps1`
 
-Ý tưởng tổ chức:
+### 2.3 Cấu hình image hiện tại
 
-- `ecom-app` là chart cha
-- từng service là chart con
-- cấu hình dùng chung nằm ở chart cha
-- ArgoCD sẽ deploy chart cha này
+Chart đang dùng:
+
+- registry: `docker.io`
+- owner: `buiducthien090605`
+- imagePullPolicy: `Always`
+
+Các image service hiện tại trong `values.yaml` là:
+
+- `my-product-service:latest`
+- `my-order-service:latest`
+- `my-inventory-service:latest`
+
+Khi render thực tế, image đầy đủ sẽ là:
+
+- `docker.io/buiducthien090605/my-product-service:latest`
+- `docker.io/buiducthien090605/my-order-service:latest`
+- `docker.io/buiducthien090605/my-inventory-service:latest`
 
 ---
 
-## 4. Cần cài gì trên Windows 11
+## 3. Điều kiện cần trước khi triển khai
 
-Bạn cần các công cụ sau:
+Bạn cần cài các công cụ sau trên Windows 11:
 
 - `Git`
 - `Docker Desktop`
 - `kubectl`
 - `Helm`
 - `PowerShell`
-- tùy chọn: `kubectl argo rollouts`
+- nên có thêm `kubectl argo rollouts` nếu muốn xem dashboard rollout
 
 ---
 
-## 5. Cài Git trên Windows 11
+## 4. Cài Git
 
-### Bước 1
-Tải Git tại đây:
+Tải tại:
 
 [https://git-scm.com/download/win](https://git-scm.com/download/win)
 
-### Bước 2
-Cài đặt bình thường, cứ bấm `Next` theo mặc định.
-
-### Bước 3
-Mở PowerShell và kiểm tra:
+Sau khi cài xong, kiểm tra:
 
 ```powershell
 git --version
 ```
 
-### Kết quả mong đợi
-Bạn sẽ thấy dạng như:
+Kết quả mong đợi:
 
 ```text
 git version 2.xx.x.windows.x
 ```
 
-Nếu hiện version là cài thành công.
-
 ---
 
-## 6. Cài Docker Desktop và bật Kubernetes
+## 5. Cài Docker Desktop và bật Kubernetes
 
-### Bước 1
-Tải Docker Desktop:
+Tải Docker Desktop tại:
 
 [https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
 
-### Bước 2
-Cài Docker Desktop.
+Sau khi cài:
 
-### Bước 3
-Mở Docker Desktop.
+1. mở Docker Desktop
+2. vào `Settings`
+3. chọn `Kubernetes`
+4. bật `Enable Kubernetes`
+5. bấm `Apply & Restart`
 
-### Bước 4
-Bật Kubernetes:
+Đợi cluster local khởi động xong.
 
-1. vào `Settings`
-2. chọn `Kubernetes`
-3. tick `Enable Kubernetes`
-4. bấm `Apply & Restart`
+Kiểm tra:
 
-### Bước 5
-Chờ vài phút cho cluster local khởi động.
+```powershell
+kubectl get nodes
+```
 
-### Kết quả mong đợi
-Docker Desktop báo Kubernetes đang chạy.
+Kết quả mong đợi:
+
+```text
+NAME             STATUS   ROLES           AGE   VERSION
+docker-desktop   Ready    control-plane   ...   ...
+```
 
 ---
 
-## 7. Cài kubectl
+## 6. Cài `kubectl`
 
-Nếu máy bạn chưa có `kubectl`, chạy:
+Nếu chưa có:
 
 ```powershell
 winget install -e --id Kubernetes.kubectl
@@ -189,12 +162,9 @@ Kiểm tra:
 kubectl version --client
 ```
 
-### Kết quả mong đợi
-Hiện version client của kubectl.
-
 ---
 
-## 8. Cài Helm
+## 7. Cài Helm
 
 Cài bằng `winget`:
 
@@ -208,1051 +178,1308 @@ Kiểm tra:
 helm version
 ```
 
-### Kết quả mong đợi
-Hiện version Helm.
+---
+
+## 8. Mở đúng thư mục project
+
+Di chuyển vào thư mục project:
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project
+```
+
+Từ đây về sau, mọi lệnh đều giả sử bạn đang đứng tại thư mục này.
 
 ---
 
-## 9. Kiểm tra Kubernetes cluster đã sẵn sàng chưa
+## 9. Kiểm tra cluster local trước khi deploy
 
-Mở PowerShell và chạy:
+### 9.1 Kiểm tra namespace và node
 
 ```powershell
 kubectl get nodes
+kubectl get ns
 ```
 
-### Kết quả mong đợi
-Bạn sẽ thấy 1 node ở trạng thái `Ready`, ví dụ:
+### 9.2 Kiểm tra storage class
 
-```text
-NAME             STATUS   ROLES           AGE   VERSION
-docker-desktop   Ready    control-plane   ...   ...
-```
+Project hiện tại cấu hình:
 
-Nếu chưa `Ready` thì đợi thêm hoặc kiểm tra Docker Desktop.
+- `global.storageClass.name: hostpath`
+- `global.storageClass.create: false`
 
----
+Điều đó nghĩa là chart đang kỳ vọng cluster đã có sẵn storage class tên `hostpath`.
 
-## 10. Mở project đúng thư mục
-
-Mở PowerShell và chạy:
-
-```powershell
-cd E:\project
-```
-
-Từ đây trở đi, các lệnh đều giả sử bạn đang đứng trong thư mục này.
-
----
-
-## 11. Kiểm tra storage class trước khi deploy
-
-Đây là bước rất quan trọng với người mới.
-
-Trong project hiện tại, file `values.yaml` mặc định có phần storage theo hướng dùng `Longhorn`.
-
-Nhưng nếu bạn đang chạy local bằng Docker Desktop trên Windows 11, nhiều khả năng bạn **không có Longhorn**.
-
-### Bước 1: kiểm tra storage class hiện có
+Kiểm tra:
 
 ```powershell
 kubectl get storageclass
 ```
 
-### Kết quả mong đợi
-Bạn sẽ thấy danh sách storage class, ví dụ:
+Trên Docker Desktop, thông thường sẽ có `hostpath` hoặc storage class mặc định tương tự.
 
-```text
-NAME                 PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE
-hostpath (default)   docker.io/hostpath         Delete          Immediate
-```
+Nếu không có `hostpath`, bạn có 2 cách:
 
-### Bước 2: chỉnh `values.yaml` nếu cần
-
-Mở file:
-
-`E:\project\helm\ecom-app\values.yaml`
-
-Tìm phần:
-
-```yaml
-global:
-  storageClass:
-    name: ecom-storage
-    create: true
-    provisioner: driver.longhorn.io
-```
-
-Nếu local cluster của bạn không có Longhorn, hãy sửa đơn giản thành:
-
-```yaml
-global:
-  storageClass:
-    name: hostpath
-    create: false
-```
-
-### Vì sao phải sửa như vậy
-- `create: false` nghĩa là không tự tạo storage class mới
-- `name: hostpath` nghĩa là dùng storage class có sẵn của Docker Desktop
-
-### Kết quả mong đợi
-Khi đó PVC của RabbitMQ dễ được bind hơn.
+- đổi `global.storageClass.name` trong `helm/ecom-app/values.yaml` sang tên storage class đang tồn tại
+- hoặc tạo một storage class phù hợp trước khi deploy
 
 ---
 
-## 12. Kiểm tra Helm chart trước khi cài
+## 10. Kiểm tra ingress host local
 
-### Bước 1: lint chart
+Project hiện dùng host:
 
-```powershell
-helm lint .\helm\ecom-app
-```
+- `api.ecom.local`
 
-### Kết quả mong đợi
-Bạn sẽ thấy dạng:
+Giá trị này nằm trong `helm/ecom-app/values.yaml`:
 
-```text
-1 chart(s) linted, 0 chart(s) failed
-```
+- `global.serviceHost: api.ecom.local`
 
-### Ý nghĩa
-Chart đúng cú pháp cơ bản.
-
-### Bước 2: render chart
-
-```powershell
-helm template ecom-app .\helm\ecom-app
-```
-
-### Kết quả mong đợi
-Hiện ra rất nhiều YAML.
-
-Bạn cần thấy các loại resource như:
-- `Secret`
-- `ConfigMap`
-- `StorageClass`
-- `PersistentVolumeClaim`
-- `Service`
-- `Ingress`
-- `Deployment`
-- `Rollout`
-- `HorizontalPodAutoscaler`
-
-### Ý nghĩa
-Nếu render được nghĩa là chart có thể sinh manifest hợp lệ.
-
----
-
-## 13. Triển khai trực tiếp bằng Helm
-
-Người mới nên làm cách này trước vì dễ hiểu hơn ArgoCD.
-
-### Bước 1: cài chart
-
-```powershell
-helm install ecom-app .\helm\ecom-app -n default --create-namespace
-```
-
-### Kết quả mong đợi
-Helm báo release `ecom-app` đã được cài.
-
-### Bước 2: kiểm tra toàn bộ tài nguyên
-
-```powershell
-kubectl get all -n default
-```
-
-### Kết quả mong đợi
-Bạn sẽ thấy:
-- pod của `product-service`
-- pod của `order-service`
-- pod của `inventory-service`
-- pod của `rabbitmq`
-- service tương ứng
-
----
-
-## 14. Kiểm tra từng resource sau khi Helm deploy
-
-### 14.1 Kiểm tra pod
-
-```powershell
-kubectl get pods -n default
-```
-
-### Kết quả mong đợi
-Trạng thái nên là:
-- `Running`
-- hoặc đang `ContainerCreating` lúc mới deploy
-
-### Nếu không như mong đợi
-Nếu có:
-- `CrashLoopBackOff`
-- `ImagePullBackOff`
-- `ErrImagePull`
-
-thì cần kiểm tra logs và describe pod.
-
----
-
-### 14.2 Kiểm tra Service
-
-```powershell
-kubectl get svc -n default
-```
-
-### Kết quả mong đợi
-Có các service như:
-- `product-service`
-- `product-service-canary`
-- `order-service`
-- `order-service-canary`
-- `inventory-service`
-- `rabbitmq`
-
----
-
-### 14.3 Kiểm tra Ingress
-
-```powershell
-kubectl get ingress -n default
-```
-
-### Kết quả mong đợi
-Có ít nhất:
-- `product-service-ingress`
-- `order-service-ingress`
-
----
-
-### 14.4 Kiểm tra HPA
-
-```powershell
-kubectl get hpa -n default
-```
-
-### Kết quả mong đợi
-Có:
-- `product-service-hpa`
-- `order-service-hpa`
-- `inventory-service-hpa`
-
----
-
-### 14.5 Kiểm tra PVC
-
-```powershell
-kubectl get pvc -n default
-```
-
-### Kết quả mong đợi
-Có `rabbitmq-data-pvc` và trạng thái tốt nhất là `Bound`.
-
-Nếu PVC bị `Pending`, khả năng cao storage class chưa phù hợp.
-
----
-
-### 14.6 Kiểm tra Rollout
-
-```powershell
-kubectl get rollout -n default
-```
-
-### Kết quả mong đợi
-Có:
-- `product-service`
-- `order-service`
-
----
-
-## 15. Cách kiểm tra lỗi khi pod không chạy
-
-Đây là phần rất quan trọng cho người mới.
-
-### Bước 1: xem danh sách pod
-
-```powershell
-kubectl get pods -n default
-```
-
-Giả sử một pod lỗi, ví dụ `product-service-xxxx`.
-
-### Bước 2: mô tả pod
-
-```powershell
-kubectl describe pod product-service-xxxx -n default
-```
-
-### Bước 3: xem log pod
-
-```powershell
-kubectl logs product-service-xxxx -n default
-```
-
-### Những lỗi thường gặp
-
-#### Lỗi 1: `ImagePullBackOff`
-Nguyên nhân:
-- image name sai
-- image tag sai
-- image private nhưng chưa có secret pull
-
-Cách xử lý:
-- kiểm tra `image.repository`
-- kiểm tra `image.tag`
-
-#### Lỗi 2: app crash vì thiếu database
-Nguyên nhân:
-- MongoDB URI placeholder chưa thay bằng giá trị thật
-
-Cách xử lý:
-- sửa trong `helm/ecom-app/values.yaml`
-- rồi upgrade lại chart
-
-#### Lỗi 3: health check fail
-Nguyên nhân:
-- app của bạn không có endpoint `/health`
-
-Cách xử lý:
-- sửa lại `readinessProbe` và `livenessProbe`
-- hoặc thêm endpoint `/health` trong service code
-
----
-
-## 16. Gỡ app nếu deploy lỗi và muốn làm lại
-
-### Gỡ Helm release
-
-```powershell
-helm uninstall ecom-app -n default
-```
-
-### Kiểm tra lại
-
-```powershell
-kubectl get all -n default
-```
-
-### Nếu muốn xóa luôn PVC
-
-```powershell
-kubectl delete pvc rabbitmq-data-pvc -n default
-```
-
-### Lưu ý
-Chỉ xóa PVC nếu bạn không cần dữ liệu cũ của RabbitMQ.
-
----
-
-## 17. Cài ArgoCD, Argo Rollouts, Image Updater và Ingress Controller
-
-Project đã có sẵn script:
-
-`argocd/install-argocd.ps1`
-
-### Bước 1: cho phép PowerShell chạy script tạm thời
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-```
-
-Nếu bị hỏi, chọn `Y`.
-
-### Bước 2: chạy script cài
-
-```powershell
-cd E:\project
-powershell -ExecutionPolicy Bypass -File .\argocd\install-argocd.ps1
-```
-
-### Script này cài gì
-- ArgoCD
-- ArgoCD Image Updater
-- Argo Rollouts Controller
-- NGINX Ingress Controller
-
-### Bước 3: kiểm tra pod của ArgoCD
-
-```powershell
-kubectl get pods -n argocd
-```
-
-### Kết quả mong đợi
-Các pod của ArgoCD nên `Running`.
-
-### Bước 4: kiểm tra pod của Rollouts
-
-```powershell
-kubectl get pods -n argo-rollouts
-```
-
-### Kết quả mong đợi
-Rollouts controller chạy bình thường.
-
-### Bước 5: kiểm tra ingress controller
-
-```powershell
-kubectl get pods -n ingress-nginx
-```
-
-### Kết quả mong đợi
-Pod ingress controller chạy bình thường.
-
----
-
-## 18. Truy cập giao diện ArgoCD
-
-### Bước 1: lấy mật khẩu admin
-
-```powershell
-[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String((kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}")))
-```
-
-### Kết quả mong đợi
-Lệnh sẽ in ra mật khẩu dạng text.
-
-### Bước 2: port-forward ArgoCD server
-
-```powershell
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-```
-
-Giữ cửa sổ này mở.
-
-### Bước 3: mở trình duyệt
-Mở:
-
-[https://localhost:8080](https://localhost:8080)
-
-### Bước 4: đăng nhập
-- username: `admin`
-- password: chuỗi vừa giải mã được
-
-### Kết quả mong đợi
-Bạn vào được dashboard ArgoCD.
-
----
-
-## 19. Cấu hình secret Git cho ArgoCD Image Updater
-
-Phần này chỉ cần nếu bạn muốn test tự động update image qua Git.
-
-### Bước 1: mở file secret mẫu
-
-`E:\project\argocd\git-credentials-secret.yaml`
-
-### Bước 2: thay giá trị mẫu
-
-Sửa:
-
-```yaml
-stringData:
-  username: <your-github-username>
-  password: <your-github-personal-access-token>
-```
-
-thành tài khoản thật của bạn.
-
-### Bước 3: apply secret
-
-```powershell
-kubectl apply -f .\argocd\git-credentials-secret.yaml
-```
-
-### Bước 4: kiểm tra secret
-
-```powershell
-kubectl get secret -n argocd
-```
-
-### Kết quả mong đợi
-Có secret tên `git-creds`.
-
----
-
-## 20. Triển khai app bằng ArgoCD
-
-### Bước 1: apply Application
-
-```powershell
-kubectl apply -f .\argocd\argocd-app.yaml
-```
-
-### Bước 2: kiểm tra Application
-
-```powershell
-kubectl get applications -n argocd
-```
-
-### Kết quả mong đợi
-App `ecom-app` có:
-- `Synced`
-- `Healthy`
-
-### Bước 3: kiểm tra trên UI ArgoCD
-Vào dashboard ArgoCD.
-
-### Kết quả mong đợi
-- thấy app `ecom-app`
-- thấy cây resource bên trong app
-- không có resource báo đỏ nghiêm trọng
-
----
-
-## 21. Cách test Ingress trên Windows 11
-
-### Mục tiêu
-Test xem request từ ngoài có đi vào service không.
-
-### Bước 1: sửa file hosts của Windows
-Mở Notepad bằng quyền admin.
-
-Mở file:
-
-`C:\Windows\System32\drivers\etc\hosts`
-
-Thêm dòng:
+Bạn nên thêm vào file `hosts` của Windows:
 
 ```text
 127.0.0.1 api.ecom.local
 ```
 
-### Bước 2: test bằng trình duyệt hoặc curl
+Cách sửa file hosts:
 
-```powershell
-curl http://api.ecom.local/api/products
-curl http://api.ecom.local/api/orders
+1. mở Notepad bằng quyền Administrator
+2. mở file:
+
+```text
+C:\Windows\System32\drivers\etc\hosts
 ```
 
-### Kết quả mong đợi
-- request đi được qua ingress
-- nhận response từ service
+3. thêm dòng:
 
-### Nếu không như mong đợi
-Nguyên nhân có thể là:
-- ingress controller chưa chạy
-- backend chưa healthy
-- route `/api/products` hoặc `/api/orders` không tồn tại trong code service
+```text
+127.0.0.1 api.ecom.local
+```
 
 ---
 
-## 22. Cách test Argo Rollouts
+## 11. Cấu trúc chart Helm hiện tại
 
-### Mục tiêu
-Kiểm tra product-service và order-service có rollout canary đúng không.
+### 11.1 Chart cha
 
-### Cách 1: kiểm tra tồn tại rollout
+`helm/ecom-app/Chart.yaml` định nghĩa đây là chart loại application và khai báo 4 dependency:
 
-```powershell
-kubectl get rollout -n default
-```
-
-### Kết quả mong đợi
-Có 2 rollout:
 - `product-service`
 - `order-service`
+- `inventory-service`
+- `rabbitmq`
 
-### Cách 2: xem chi tiết rollout
-Nếu bạn đã cài plugin CLI:
+### 11.2 values chính
 
-```powershell
-kubectl argo rollouts get rollout product-service -n default
-kubectl argo rollouts get rollout order-service -n default
-```
+File `helm/ecom-app/values.yaml` chứa:
 
-### Kết quả mong đợi
-Bạn sẽ thấy rollout đi theo step.
-
-### Kịch bản test rollout thực tế
-1. mở file `helm/ecom-app/values.yaml`
-2. đổi `image.tag` của `product-service`
-3. nếu đang dùng ArgoCD thì commit và push lên GitHub
-4. chờ ArgoCD sync
-5. kiểm tra rollout progression
-
-### Kết quả mong đợi
-- rollout chạy theo các bước `setWeight`
-- có `pause`
-- nếu không lỗi thì promoted hoàn toàn
-
-### Nếu không như mong đợi
-Nguyên nhân có thể là:
-- image mới không tồn tại
-- ingress controller chưa đúng
-- rollouts controller chưa chạy
+- cấu hình global
+- port cho từng service
+- image repository/tag cho từng service
+- rollout steps
+- resource requests/limits
+- HPA
+- thông tin kết nối MongoDB
+- cấu hình RabbitMQ persistence
 
 ---
 
-## 23. Cách test HPA
+## 12. Chuẩn bị image backend trước khi deploy
 
-### Mục tiêu
-Kiểm tra autoscaling có hoạt động không.
+Vì cluster sẽ pull image từ Docker Hub, bạn cần chắc rằng image đã tồn tại trên registry.
 
-### Bước 1: xem HPA
+### 12.1 Đăng nhập Docker Hub
+
+```powershell
+docker login --username buiducthien090605
+```
+
+Sau đó nhập password hoặc Personal Access Token.
+
+Nếu thành công, bạn sẽ thấy:
+
+```text
+Login Succeeded
+```
+
+### 12.2 Build image cho Product Service
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project\backend\Product_Service
+docker build -t buiducthien090605/my-product-service:latest .
+```
+
+### 12.3 Build image cho Order Service
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project\backend\Order_Service
+docker build -t buiducthien090605/my-order-service:latest .
+```
+
+### 12.4 Build image cho Inventory Service
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project\backend\Inventory_Service
+docker build -t buiducthien090605/my-inventory-service:latest .
+```
+
+### 12.5 Push image lên Docker Hub
+
+```powershell
+docker push buiducthien090605/my-product-service:latest
+docker push buiducthien090605/my-order-service:latest
+docker push buiducthien090605/my-inventory-service:latest
+```
+
+Nếu bị lỗi kiểu:
+
+```text
+push access denied, repository does not exist or may require authorization
+```
+
+thì nguyên nhân thường là:
+
+- chưa `docker login`
+- đang push sai namespace Docker Hub
+- repo chưa tồn tại hoặc tài khoản không có quyền push
+
+---
+
+## 13. Vì sao project cần `/health`
+
+Trong trạng thái hiện tại, cả 3 backend service đều đã có endpoint:
+
+- `GET /health`
+
+Mục đích:
+
+- phục vụ `readinessProbe`
+- phục vụ `livenessProbe`
+- giúp pod không bị `CrashLoopBackOff` do probe sai endpoint
+
+Nếu service chưa có `/health` mà chart lại probe vào `/health`, pod sẽ fail health check.
+
+Đây là lỗi thực tế đã gặp trước đó trong project này.
+
+---
+
+## 14. Deploy bằng Helm
+
+### 14.1 Kiểm tra chart trước khi deploy
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project
+helm lint helm/ecom-app
+```
+
+Kết quả mong đợi:
+
+```text
+1 chart(s) linted, 0 chart(s) failed
+```
+
+### 14.2 Render thử manifest
+
+```powershell
+helm template ecom-app helm/ecom-app -n default
+```
+
+Nếu render không báo lỗi, chart hợp lệ ở mức template.
+
+### 14.3 Deploy chart
+
+```powershell
+helm upgrade --install ecom-app helm/ecom-app -n default
+```
+
+Kết quả mong đợi:
+
+```text
+Release "ecom-app" has been upgraded. Happy Helming!
+```
+
+Hoặc ở lần đầu:
+
+```text
+Release "ecom-app" does not exist. Installing it now.
+```
+
+---
+
+## 15. Kiểm tra sau khi deploy Helm
+
+### 15.1 Kiểm tra pod
+
+```powershell
+kubectl get pods -n default
+```
+
+Kết quả tốt là các pod đều `Running` và `READY` đủ số lượng.
+
+Ví dụ:
+
+```text
+inventory-service-xxxxx   1/1   Running
+order-service-xxxxx       1/1   Running
+product-service-xxxxx     1/1   Running
+rabbitmq-xxxxx            1/1   Running
+```
+
+### 15.2 Kiểm tra deployment, rollout, service
+
+```powershell
+kubectl get deploy,rollout,svc -n default
+```
+
+Bạn nên thấy:
+
+- `deployment.apps/inventory-service`
+- `deployment.apps/rabbitmq`
+- `rollout.argoproj.io/order-service`
+- `rollout.argoproj.io/product-service`
+- các service tương ứng
+
+### 15.3 Kiểm tra log từng service
+
+```powershell
+kubectl logs -n default deployment/inventory-service --tail=30
+kubectl logs -n default <order-pod-name> --tail=30
+kubectl logs -n default <product-pod-name> --tail=30
+```
+
+Dấu hiệu tốt trong log:
+
+- `InventoryDB connected`
+- `OrderDB connected`
+- `ProductDB conected`
+- `RabbitMQ Connected - Ready to publish events`
+
+---
+
+## 16. Endpoint quan trọng sau deploy
+
+### 16.1 Health check
+
+- `http://api.ecom.local/health` chỉ dùng được nếu ingress map root path phù hợp
+- thực tế thường sẽ kiểm tra qua pod/service hoặc port-forward
+
+Bạn cũng có thể kiểm tra nội bộ bằng port-forward hoặc gọi trực tiếp vào service.
+
+### 16.2 Swagger
+
+Các service hiện expose Swagger tại:
+
+- Product: `/api-docs`
+- Order: `/api-docs`
+- Inventory: `/api-docs`
+
+### 16.3 API path theo ingress hiện tại
+
+- Product: `/api/products`
+- Order: `/api/orders`
+- Inventory: nếu chart của bạn có ingress riêng thì kiểm tra thêm template tương ứng
+
+---
+
+## 17. Argo Rollouts trong project này hoạt động thế nào
+
+`product-service` và `order-service` dùng `Rollout` thay cho `Deployment`.
+
+Canary steps hiện tại là:
+
+- 20%
+- pause 60 giây
+- 60%
+- pause 60 giây
+- sau đó lên stable hoàn toàn
+
+Điều này được cấu hình trong `values.yaml` ở phần:
+
+- `product-service.rollout.steps`
+- `order-service.rollout.steps`
+
+---
+
+## 18. Lỗi thực tế đã gặp: conflict giữa Helm và Argo Rollouts
+
+### 18.1 Triệu chứng
+
+Trước khi sửa, `helm upgrade` bị lỗi kiểu:
+
+```text
+conflict occurred while applying object ... Service ... conflict with "rollouts-controller" using v1: .spec.selector
+```
+
+### 18.2 Nguyên nhân
+
+Argo Rollouts tự quản lý `Service.spec.selector` cho:
+
+- `order-service`
+- `order-service-canary`
+- `product-service`
+- `product-service-canary`
+
+Nếu Helm template cũng cố định `selector` trong các Service này, khi upgrade sẽ xảy ra conflict ownership.
+
+### 18.3 Cách sửa đúng
+
+Đã sửa chart để:
+
+- bỏ `selector` khỏi service template của `order-service`
+- bỏ `selector` khỏi service template của `product-service`
+
+Từ đó Argo Rollouts toàn quyền cập nhật selector theo `rollouts-pod-template-hash`.
+
+Sau khi sửa, `helm upgrade --install` chạy thành công trở lại.
+
+---
+
+## 19. Cài ArgoCD, Argo Rollouts và Image Updater
+
+Project đã có sẵn script:
+
+- `argocd/install-argocd.ps1`
+
+Chạy script bằng PowerShell:
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project
+powershell -ExecutionPolicy Bypass -File .\argocd\install-argocd.ps1
+```
+
+Script này sẽ:
+
+1. tạo namespace `argocd`
+2. tạo namespace `argo-rollouts`
+3. cài ArgoCD
+4. cài ArgoCD Image Updater
+5. cài Argo Rollouts Controller
+6. cài NGINX Ingress Controller
+7. đợi `argocd-server` sẵn sàng
+
+Sau khi cài xong, script sẽ in ra:
+
+- mật khẩu admin ban đầu của ArgoCD
+- lệnh port-forward vào ArgoCD UI
+- gợi ý mở Argo Rollouts dashboard
+
+---
+
+## 20. Mở ArgoCD UI
+
+Port-forward:
+
+```powershell
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+Mở trình duyệt:
+
+[https://localhost:8080](https://localhost:8080)
+
+Lấy password admin:
+
+```powershell
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}"
+```
+
+Nếu cần decode trong PowerShell:
+
+```powershell
+[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String((kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}")))
+```
+
+---
+
+## 21. Cấu hình Git credentials cho ArgoCD Image Updater
+
+File mẫu:
+
+- `argocd/git-credentials-secret.yaml`
+
+Bạn cần sửa:
+
+- `username: <your-github-username>`
+- `password: <your-github-personal-access-token>`
+
+Sau đó apply:
+
+```powershell
+kubectl apply -f .\argocd\git-credentials-secret.yaml
+```
+
+Lưu ý quan trọng:
+
+- không commit token thật vào Git
+- tốt nhất dùng secret ngoài hoặc tạo file local riêng khi demo
+
+---
+
+## 22. Deploy app bằng ArgoCD
+
+Project đã có Application manifest:
+
+- `argocd/argocd-app.yaml`
+
+Manifest này đang trỏ tới:
+
+- repo: `https://github.com/buiducthien090605/project.git`
+- branch: `main`
+- path: `helm/ecom-app`
+- namespace đích: `default`
+
+Để tạo app trong ArgoCD:
+
+```powershell
+kubectl apply -f .\argocd\argocd-app.yaml
+```
+
+Kiểm tra:
+
+```powershell
+kubectl get applications -n argocd
+```
+
+---
+
+## 23. ArgoCD Image Updater trong project này
+
+`argocd/argocd-app.yaml` hiện đã khai báo annotation cho 3 image:
+
+- product
+- order
+- inventory
+
+Write-back target hiện tại là:
+
+- `helm/ecom-app/values.yaml`
+
+Nghĩa là khi phát hiện image mới, Image Updater có thể ghi ngược tag mới về Git vào file `values.yaml`.
+
+---
+
+## 24. Kiểm tra HPA
+
+Project hiện bật HPA cho:
+
+- `product-service`
+- `order-service`
+- `inventory-service`
+
+Kiểm tra:
 
 ```powershell
 kubectl get hpa -n default
 ```
 
-### Kết quả mong đợi
-Có 3 HPA.
+Bạn sẽ thấy:
 
-### Bước 2: theo dõi realtime
+- min replicas: `2`
+- max replicas: `10`
+- CPU target: `60%`
 
-```powershell
-kubectl get hpa -n default -w
-```
+Lưu ý: để HPA hoạt động đầy đủ, cluster cần có `metrics-server`.
 
-### Bước 3: tạo tải thử
-Bạn có thể tạo nhiều request lặp lại:
-
-```powershell
-for ($i=0; $i -lt 200; $i++) { curl http://api.ecom.local/api/products }
-```
-
-### Kết quả mong đợi
-Nếu cluster có `metrics-server` và service phản hồi đủ tải:
-- CPU tăng
-- replicas tăng
-
-### Điều kiện bắt buộc
-Cluster cần có `metrics-server`.
-
-### Kiểm tra metrics-server
-
-```powershell
-kubectl get apiservices | findstr metrics
-```
-
-Nếu không có metrics-server, HPA có thể tồn tại nhưng không scale thật.
+Nếu chạy local mà chưa có metrics-server, HPA có thể tồn tại nhưng không scale đúng do thiếu metric.
 
 ---
 
-## 24. Cách test PVC và lưu trữ
+## 25. Kiểm tra RabbitMQ persistence
 
-### Mục tiêu
-Kiểm tra RabbitMQ có volume hoạt động không.
-
-### Bước 1: xem PVC
+Kiểm tra PVC:
 
 ```powershell
 kubectl get pvc -n default
 ```
 
-### Kết quả mong đợi
-`rabbitmq-data-pvc` ở trạng thái `Bound`.
-
-### Bước 2: xem chi tiết PVC
+Kiểm tra deployment RabbitMQ:
 
 ```powershell
-kubectl describe pvc rabbitmq-data-pvc -n default
+kubectl get deploy rabbitmq -n default
+kubectl logs deployment/rabbitmq -n default --tail=50
 ```
 
-### Bước 3: xem pod RabbitMQ
-
-```powershell
-kubectl describe pod -n default
-```
-
-### Kết quả mong đợi
-RabbitMQ mount volume thành công.
-
-### Nếu không như mong đợi
-Nguyên nhân phổ biến:
-- storage class name sai
-- cluster không có provisioner tương ứng
-- `create: true` nhưng provisioner không tồn tại
+Mục tiêu là đảm bảo RabbitMQ có volume bền vững và không mất dữ liệu khi pod restart.
 
 ---
 
-## 25. Cách test ArgoCD sync
+## 26. Kịch bản triển khai, hướng dẫn test và kết quả mong đợi
 
-### Mục tiêu
-Kiểm tra ArgoCD có lấy manifest từ Git rồi deploy xuống cluster không.
+Phần này dùng để demo, nghiệm thu, hoặc trình bày với giảng viên theo từng tình huống rõ ràng.
 
-### Bước 1: apply Application
+### 26.1 Kịch bản 1: build lại một service khi code thay đổi
+
+Khi bạn sửa code của một service, ví dụ `product-service`, thì nguyên tắc đúng là:
+
+- chỉ build lại image của service đó
+- chỉ push lại image của service đó
+- cập nhật tag image của service đó
+- để ArgoCD đồng bộ phần thay đổi xuống cluster
+- nếu service đó dùng Argo Rollouts thì rollout theo canary hoặc blue-green
+
+Ví dụ với `product-service`:
 
 ```powershell
-kubectl apply -f .\argocd\argocd-app.yaml
+cd C:\Users\DELL\Documents\GitHub\project\backend\Product_Service
+docker build -t buiducthien090605/my-product-service:latest .
+docker push buiducthien090605/my-product-service:latest
 ```
 
-### Bước 2: kiểm tra app
+Sau đó cập nhật tag trong `helm/ecom-app/values.yaml` hoặc để `ArgoCD Image Updater` cập nhật tự động.
+
+#### Cách test
+
+1. kiểm tra image mới đã được push
+2. kiểm tra ArgoCD app chuyển sang trạng thái `OutOfSync` rồi `Synced`
+3. kiểm tra `kubectl get rollout -n default`
+4. kiểm tra pod mới được tạo
+5. kiểm tra log service mới
+6. gọi endpoint `/health`
+
+#### Kết quả mong đợi
+
+- chỉ service vừa thay đổi được rollout lại
+- service còn lại không bị build/deploy lại
+- pod mới lên `Running`
+- log không có lỗi kết nối DB/RabbitMQ
+- endpoint `/health` trả về `200 OK`
+
+### 26.2 Kịch bản 2: thay đổi cấu hình `ConfigMap`
+
+Ví dụ thay đổi:
+
+- port nội bộ
+- `OTEL_SERVICE_NAME`
+- `PRODUCT_SERVICE_URL`
+- host dùng chung trong app
+
+#### Cách thực hiện
+
+1. sửa `helm/ecom-app/values.yaml`
+2. chạy `helm lint`
+3. deploy lại bằng Helm hoặc commit để ArgoCD sync
 
 ```powershell
-kubectl get applications -n argocd
+helm lint helm/ecom-app
+helm upgrade --install ecom-app helm/ecom-app -n default
 ```
 
-### Kết quả mong đợi
-- `Synced`
-- `Healthy`
+#### Cách test
 
-### Bước 3: đổi một cấu hình nhỏ trong Git
-Ví dụ đổi `image.tag` hoặc replicas trong `values.yaml`, rồi push lên Git.
-
-### Bước 4: xem ArgoCD phản ứng
-
-Kết quả mong đợi:
-- ArgoCD phát hiện thay đổi
-- tự sync nếu cấu hình auto-sync đang bật
-
----
-
-## 26. Cách test ArgoCD Image Updater
-
-Phần này nâng cao hơn, nếu bạn mới học có thể làm sau.
-
-### Điều kiện cần
-- đã cài `ArgoCD Image Updater`
-- secret `git-creds` đúng
-- repo GitHub cho phép push
-- image mới đã được push lên registry
-
-### Bước 1: push image mới
-Ví dụ push version mới cho `product-service`.
-
-### Bước 2: xem log image updater
+1. kiểm tra ConfigMap trong cluster:
 
 ```powershell
-kubectl logs -n argocd deployment/argocd-image-updater
+kubectl get configmap -n default
+kubectl describe configmap order-service-config -n default
 ```
 
-### Kết quả mong đợi
-Log cho thấy updater phát hiện image mới.
+2. kiểm tra rollout hoặc restart pod nếu cần
+3. kiểm tra log service
+4. gọi API tương ứng
 
-### Bước 3: kiểm tra GitHub
-Mở repo GitHub xem `helm/ecom-app/values.yaml` có được đổi tag image không.
+#### Kết quả mong đợi
 
-### Bước 4: kiểm tra ArgoCD
-ArgoCD sẽ sync lại app sau khi Git thay đổi.
+- ConfigMap mới xuất hiện trong cluster
+- pod dùng cấu hình mới
+- ứng dụng vẫn hoạt động bình thường
+- không phát sinh `CrashLoopBackOff`
 
-### Kết quả mong đợi
-Luồng hoàn chỉnh là:
-1. image mới xuất hiện
-2. image updater ghi tag mới vào Git
-3. ArgoCD đọc Git
-4. cluster được update
+### 26.3 Kịch bản 3: thay đổi Secret kết nối database
 
----
+Ví dụ thay đổi MongoDB URI.
 
-## 27. Kịch bản test đầy đủ và kết quả mong đợi
+#### Cách thực hiện
 
-### Kịch bản 1: test chart hợp lệ
-Lệnh:
+1. cập nhật secret trong chart hoặc secret external
+2. deploy lại chart
+3. theo dõi log service
+
+#### Cách test
 
 ```powershell
-helm lint .\helm\ecom-app
+kubectl get secret -n default
+kubectl logs <pod-name> -n default --tail=50
 ```
 
-Kết quả mong đợi:
-- chart pass
-- không có chart failed
+#### Kết quả mong đợi
 
----
+- service connect được DB
+- log hiển thị `ProductDB conected`, `OrderDB connected`, hoặc `InventoryDB connected`
+- pod không restart liên tục
 
-### Kịch bản 2: test render manifest
-Lệnh:
+### 26.4 Kịch bản 4: kiểm thử sau deploy toàn hệ thống
 
-```powershell
-helm template ecom-app .\helm\ecom-app
-```
+Sau khi deploy xong toàn bộ chart, hãy chạy checklist test sau.
 
-Kết quả mong đợi:
-- render thành công
-- có đủ resource quan trọng
-
----
-
-### Kịch bản 3: test deploy bằng Helm
-Lệnh:
+#### Test 1: kiểm tra tài nguyên Kubernetes
 
 ```powershell
-helm install ecom-app .\helm\ecom-app -n default --create-namespace
-kubectl get all -n default
-```
-
-Kết quả mong đợi:
-- pod/service/deployment/rollout được tạo
-
----
-
-### Kịch bản 4: test PVC
-Lệnh:
-
-```powershell
+kubectl get pods -n default
+kubectl get deploy,rollout,svc -n default
+kubectl get hpa -n default
 kubectl get pvc -n default
 ```
 
-Kết quả mong đợi:
-- `rabbitmq-data-pvc` là `Bound`
+##### Kết quả mong đợi
 
----
+- tất cả pod ở trạng thái `Running`
+- `inventory-service` là `Deployment`
+- `order-service` và `product-service` là `Rollout`
+- HPA được tạo
+- PVC của RabbitMQ được tạo thành công
 
-### Kịch bản 5: test ArgoCD
-Lệnh:
+#### Test 2: kiểm tra health endpoint
 
-```powershell
-kubectl apply -f .\argocd\argocd-app.yaml
-kubectl get applications -n argocd
-```
+Có thể dùng port-forward hoặc test nội bộ từ service.
 
-Kết quả mong đợi:
-- app `Synced`
-- app `Healthy`
-
----
-
-### Kịch bản 6: test ingress
-Lệnh:
+Ví dụ port-forward `inventory-service`:
 
 ```powershell
-curl http://api.ecom.local/api/products
-curl http://api.ecom.local/api/orders
+kubectl port-forward svc/inventory-service -n default 3003:3003
 ```
 
-Kết quả mong đợi:
-- request đi tới backend
-
----
-
-### Kịch bản 7: test rollout
-Lệnh:
+Sau đó gọi:
 
 ```powershell
-kubectl get rollout -n default
+curl http://localhost:3003/health
 ```
 
-Hoặc:
+Làm tương tự với `3001` và `3002` cho `product-service` và `order-service`.
+
+##### Kết quả mong đợi
+
+Trả về JSON tương tự:
+
+```json
+{
+  "status": "OK",
+  "service": "inventory-service",
+  "time": "2026-06-07T..."
+}
+```
+
+#### Test 3: kiểm tra Swagger
+
+Port-forward service tương ứng hoặc truy cập qua ingress, sau đó mở:
+
+- `http://localhost:3001/api-docs`
+- `http://localhost:3002/api-docs`
+- `http://localhost:3003/api-docs`
+
+##### Kết quả mong đợi
+
+- giao diện Swagger UI mở được
+- có danh sách API endpoint
+
+#### Test 4: kiểm tra log runtime
 
 ```powershell
-kubectl argo rollouts get rollout product-service -n default
+kubectl logs -n default deployment/inventory-service --tail=30
+kubectl logs -n default <order-pod-name> --tail=30
+kubectl logs -n default <product-pod-name> --tail=30
 ```
 
-Kết quả mong đợi:
-- rollout tồn tại
-- rollout đi theo step khi update image
+##### Kết quả mong đợi
+
+- service khởi động thành công
+- không có lỗi `ENOTFOUND`
+- không có lỗi `connection refused`
+- `Order Service` kết nối được RabbitMQ
+
+### 26.5 Kịch bản 5: rollout thất bại và rollback
+
+Nếu image mới lỗi hoặc app không pass health check:
+
+- pod mới sẽ không healthy
+- rollout có thể dừng ở giữa
+- Argo Rollouts cho phép rollback/promote tùy chiến lược
+
+#### Cách test
+
+1. cố tình deploy image lỗi
+2. quan sát pod mới
+3. quan sát rollout
+4. kiểm tra service stable còn giữ traffic hay không
+
+#### Kết quả mong đợi
+
+- traffic không chuyển hoàn toàn sang bản lỗi nếu đang dùng canary đúng cách
+- service stable vẫn còn khả năng phục vụ
+- có thể rollback nhanh về phiên bản trước
 
 ---
 
-### Kịch bản 8: test HPA
-Lệnh:
+## 27. Thiết kế CI/CD nên tách riêng: `CI -> GitHub Actions`, `CD -> ArgoCD`
 
-```powershell
-kubectl get hpa -n default -w
-```
+Trong project này, hướng thiết kế tốt hơn là tách rõ:
 
-Kết quả mong đợi:
-- replicas tăng khi có tải
-
----
-
-### Kịch bản 9: test image updater
-Lệnh:
-
-```powershell
-kubectl logs -n argocd deployment/argocd-image-updater
-```
-
-Kết quả mong đợi:
-- updater phát hiện image mới
-- update values trên Git
-- ArgoCD sync lại
-
----
-
-## 28. Những lỗi thường gặp và cách xử lý nhanh
-
-### Lỗi: `kubectl get nodes` không ra node `Ready`
-Cách xử lý:
-- mở Docker Desktop
-- kiểm tra Kubernetes đã bật chưa
-- chờ cluster khởi động xong
-
-### Lỗi: `helm install` fail vì PVC Pending
-Cách xử lý:
-- kiểm tra `kubectl get storageclass`
-- sửa `values.yaml` cho đúng storage class local
-
-### Lỗi: pod `ImagePullBackOff`
-Cách xử lý:
-- kiểm tra lại repository/tag image
-
-### Lỗi: pod `CrashLoopBackOff`
-Cách xử lý:
-- xem `kubectl logs`
-- kiểm tra secret MongoDB URI
-- kiểm tra app có endpoint `/health` không
-
-### Lỗi: ArgoCD app không `Healthy`
-Cách xử lý:
-- mở UI ArgoCD
-- xem resource nào đỏ
-- kiểm tra namespace, service, PVC, rollout
-
-### Lỗi: ingress không vào được
-Cách xử lý:
-- kiểm tra `ingress-nginx` running chưa
-- kiểm tra file hosts của Windows
-- kiểm tra service backend có chạy không
-
-### Lỗi: HPA không scale
-Cách xử lý:
-- kiểm tra metrics-server
-- kiểm tra có đủ tải thực tế chưa
-
----
-
-## 29. Thứ tự triển khai tốt nhất cho người mới
-
-Mình khuyên bạn làm theo thứ tự này:
-
-1. cài Docker Desktop và bật Kubernetes
-2. cài `kubectl`
-3. cài `helm`
-4. chạy `kubectl get nodes`
-5. chạy `kubectl get storageclass`
-6. chỉnh `values.yaml` nếu storage class không phù hợp
-7. chạy `helm lint`
-8. chạy `helm template`
-9. chạy `helm install`
-10. kiểm tra pod/service/pvc/hpa/rollout
-11. sau khi Helm ổn mới cài ArgoCD
-12. apply `argocd-app.yaml`
-13. sau cùng mới test image updater
+- `CI`: dùng `GitHub Actions`
+- `CD`: dùng `ArgoCD`
 
 Lý do:
-- nếu Helm chưa ổn mà test ArgoCD ngay, bạn sẽ rất khó biết lỗi nằm ở đâu
-- làm tuần tự sẽ dễ học hơn nhiều
+
+- CI tập trung vào kiểm tra chất lượng mã nguồn, build, scan bảo mật và tạo image
+- CD tập trung vào đồng bộ manifest/Helm từ Git xuống cluster
+- giúp pipeline rõ ràng, dễ debug, dễ mở rộng
+- đúng với mô hình GitOps hiện đại
+
+### 27.1 Vai trò của CI
+
+CI nên làm các việc sau cho từng service:
+
+- checkout source code
+- cài dependency
+- chạy test
+- chạy static analysis
+- chạy `SonarQube`
+- chờ `Quality Gate`
+- chạy `Snyk`
+- chạy `Trivy`
+- build image
+- push image
+- cập nhật image tag vào nơi được quản lý
+
+### 27.2 Vai trò của CD
+
+CD nên làm các việc sau:
+
+- ArgoCD theo dõi repo Git
+- khi `values.yaml` hoặc chart thay đổi, ArgoCD sync xuống cluster
+- với service dùng `Rollout`, rollout được thực hiện theo canary hoặc blue-green
+- có thể dùng `ArgoCD Image Updater` để cập nhật tag image vào Git
+
+### 27.3 Vì sao mỗi service nên là một workflow riêng
+
+Bạn đã định hướng đúng: mỗi service nên có workflow CI riêng, sau đó được gọi từ main workflow.
+
+Ví dụ nên tách:
+
+- `ci-product-service.yml`
+- `ci-order-service.yml`
+- `ci-inventory-service.yml`
+- `ci-rabbitmq.yml` nếu cần scan manifest/image base
+- `main-ci.yml` để điều phối
+
+Lợi ích:
+
+- tránh file workflow quá dài
+- dễ tái sử dụng
+- dễ bảo trì
+- chỉ chạy đúng service bị thay đổi
+- phù hợp với reusable workflow của GitHub Actions theo `workflow_call`
+
+Theo GitHub Docs, reusable workflow nên dùng `on: workflow_call` và được gọi ở cấp `job` bằng `uses:`.
+
+Tài liệu tham khảo:
+
+- [Reuse workflows - GitHub Docs](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)
+
+### 27.4 Gợi ý cấu trúc workflow
+
+```text
+.github/
+  workflows/
+    main-ci.yml
+    ci-product-service.yml
+    ci-order-service.yml
+    ci-inventory-service.yml
+    job-sonarqube.yml
+    job-quality-gate.yml
+    job-snyk.yml
+    job-trivy.yml
+```
+
+### 27.5 Main workflow nên làm gì
+
+`main-ci.yml` có vai trò điều phối.
+
+Ví dụ:
+
+- phát hiện thư mục nào thay đổi
+- gọi reusable workflow tương ứng cho từng service
+- chỉ gọi `product-service` khi `backend/Product_Service/**` thay đổi
+- chỉ gọi `order-service` khi `backend/Order_Service/**` thay đổi
+- chỉ gọi `inventory-service` khi `backend/Inventory_Service/**` thay đổi
+
+Tư duy quan trọng:
+
+- code service nào đổi thì build/deploy lại service đó
+- không nên build lại toàn bộ nếu không cần
+
+### 27.6 Các workflow kiểm tra nên tách riêng
+
+Bạn cũng định hướng đúng ở phần này. Các bước như:
+
+- `SonarQube`
+- `Quality Gate`
+- `Snyk`
+- `Trivy`
+
+nên được tách thành workflow hoặc module reusable riêng để tái sử dụng cho nhiều service.
+
+Ví dụ:
+
+- `job-sonarqube.yml`
+- `job-quality-gate.yml`
+- `job-snyk.yml`
+- `job-trivy.yml`
+
+Mỗi workflow nhận input như:
+
+- `service_name`
+- `working_directory`
+- `image_name`
+- `image_tag`
+
+### 27.7 Chuỗi CI đề xuất cho từng service
+
+Với mỗi service, pipeline nên có các job theo thứ tự:
+
+1. `test`
+2. `sonarqube`
+3. `quality-gate`
+4. `snyk`
+5. `trivy`
+6. `build-and-push`
+7. `update-image-tag`
+
+#### Kết quả mong đợi
+
+- chỉ service thay đổi mới chạy pipeline riêng của nó
+- nếu quality gate fail thì không được build/push
+- nếu Snyk/Trivy phát hiện mức độ nghiêm trọng vượt ngưỡng thì pipeline fail
+- khi build/push thành công, image tag mới được cập nhật
+- ArgoCD phát hiện thay đổi Git và tự sync
 
 ---
 
-## 30. Checklist thao tác từng bước
+## 28. Thiết kế CD với ArgoCD và Argo Rollouts
 
-### Phần A: môi trường
-- [ ] cài Git
-- [ ] cài Docker Desktop
-- [ ] bật Kubernetes
-- [ ] cài kubectl
-- [ ] cài Helm
+### 28.1 ArgoCD nên là lớp CD chính
 
-### Phần B: cluster
-- [ ] `kubectl get nodes`
-- [ ] `kubectl get storageclass`
+ArgoCD nên theo dõi repo chứa:
 
-### Phần C: chuẩn bị chart
-- [ ] mở `helm/ecom-app/values.yaml`
-- [ ] sửa storage class nếu cần
-- [ ] thay MongoDB URI placeholder nếu bạn có database thật
+- chart Helm
+- `values.yaml`
+- các manifest phụ trợ
 
-### Phần D: test Helm
-- [ ] `helm lint .\helm\ecom-app`
-- [ ] `helm template ecom-app .\helm\ecom-app`
+Khi có thay đổi hợp lệ trong Git, ArgoCD sẽ sync xuống cluster.
 
-### Phần E: deploy Helm
-- [ ] `helm install ecom-app .\helm\ecom-app -n default --create-namespace`
-- [ ] `kubectl get all -n default`
-- [ ] `kubectl get ingress -n default`
-- [ ] `kubectl get hpa -n default`
-- [ ] `kubectl get pvc -n default`
-- [ ] `kubectl get rollout -n default`
+Điểm tốt của cách này:
 
-### Phần F: deploy ArgoCD
-- [ ] chạy `argocd/install-argocd.ps1`
-- [ ] lấy password ArgoCD
-- [ ] port-forward ArgoCD UI
-- [ ] đăng nhập
-- [ ] apply `argocd-app.yaml`
-- [ ] kiểm tra `Synced` và `Healthy`
+- không deploy trực tiếp từ GitHub Actions vào cluster
+- tránh để CI kiêm luôn CD
+- trạng thái triển khai được quản lý tập trung trong ArgoCD
 
-### Phần G: test nâng cao
-- [ ] test ingress
-- [ ] test rollout
-- [ ] test HPA
-- [ ] test Image Updater
+### 28.2 Argo Rollouts cho progressive delivery
+
+Phần CD nên kết hợp `Argo Rollouts` để triển khai an toàn hơn.
+
+Hai chiến lược chính:
+
+- `Canary`
+- `Blue-Green`
+
+Theo tài liệu Argo Rollouts, controller này hỗ trợ canary, blue-green, traffic shifting, automated promotion/rollback và tích hợp với ingress controller.
+
+Tài liệu tham khảo:
+
+- [Argo Rollouts](https://argoproj.github.io/rollouts/)
+
+### 28.3 Khi nào nên dùng Canary
+
+Nên dùng `Canary` khi:
+
+- muốn tăng traffic dần dần
+- muốn giảm blast radius khi bản mới lỗi
+- muốn theo dõi log, metric, error rate theo từng bước
+- đã có ingress controller hoặc traffic routing phù hợp
+
+Ví dụ chuỗi step:
+
+- 20%
+- pause 60 giây
+- 60%
+- pause 60 giây
+- 100%
+
+Đây cũng là cách `product-service` và `order-service` đang làm trong project hiện tại.
+
+### 28.4 Khi nào nên dùng Blue-Green
+
+Nên dùng `Blue-Green` khi:
+
+- muốn dễ rollback
+- muốn có `active service` và `preview service`
+- muốn test bản mới trước khi chuyển traffic toàn phần
+- muốn ít phụ thuộc hơn vào traffic splitting chi tiết
+
+Blue-Green thường dễ giải thích khi demo, nhưng sẽ tốn tài nguyên hơn vì 2 phiên bản cùng tồn tại trong một khoảng thời gian.
+
+### 28.5 Kiểm thử rollout canary
+
+#### Cách test
+
+1. deploy image tag mới
+2. kiểm tra `kubectl get rollout -n default`
+3. kiểm tra service stable/canary
+4. kiểm tra log pod mới
+5. test API trong thời gian pause
+
+#### Kết quả mong đợi
+
+- service stable vẫn phục vụ traffic
+- service canary nhận một phần traffic
+- sau mỗi bước pause, có thể quan sát log và health
+- nếu tốt, rollout tiến lên bước kế tiếp
+
+### 28.6 Kiểm thử rollout blue-green
+
+#### Cách test
+
+1. deploy version mới
+2. kiểm tra `preview service`
+3. test version mới qua preview
+4. promote sang `active service`
+
+#### Kết quả mong đợi
+
+- active service vẫn trỏ vào phiên bản cũ trước khi promote
+- preview service trỏ vào phiên bản mới
+- sau promote, active service chuyển sang phiên bản mới
+- nếu lỗi, rollback nhanh bằng cách chuyển active về bản cũ
 
 ---
 
-## 31. 5 lệnh đầu tiên bạn nên chạy ngay
+## 29. File cấu hình Kubernetes nên có gì ngoài `Deployment`/`Service`
 
-Nếu bạn chưa biết bắt đầu từ đâu, hãy chạy đúng thứ tự này:
+Ngoài `Deployment` hoặc `Rollout` và `Service`, một hệ thống production-ready nên có thêm:
+
+- `ConfigMap`
+- `Secret`
+- `PersistentVolumeClaim`
+- `StorageClass`
+- `Ingress`
+- `HorizontalPodAutoscaler`
+- `PodDisruptionBudget` nếu cần
+- `NetworkPolicy` nếu cần tăng bảo mật
+
+### 29.1 `ConfigMap`
+
+Dùng cho:
+
+- port
+- endpoint nội bộ
+- cấu hình feature flag đơn giản
+- thông số quan sát như tên service cho telemetry
+
+### 29.2 `Secret`
+
+Dùng cho:
+
+- MongoDB URI
+- token
+- mật khẩu
+- credential của hệ thống ngoài
+
+Khuyến nghị:
+
+- không hard-code secret thật vào Git
+- nên dùng external secret, sealed secret hoặc secret manager khi làm production
+
+### 29.3 `Persistent Storage`
+
+RabbitMQ là ví dụ rõ nhất cần persistent storage.
+
+Các lựa chọn distributed storage nên tham khảo:
+
+- `Longhorn`
+- `Rook/Ceph`
+
+Nếu chạy local trên Docker Desktop thì có thể dùng `hostpath`.
+
+Nếu chạy môi trường gần production hoặc cluster nhiều node, nên dùng distributed storage để đảm bảo dữ liệu bền vững hơn.
+
+### 29.4 Dùng Helm để quản lý toàn bộ
+
+Các tài nguyên sau nên được quản lý tập trung bằng Helm:
+
+- workload
+- service
+- configmap
+- secret template
+- pvc
+- storageclass
+- ingress
+- hpa
+
+Như vậy bạn chỉ cần quản lý cấu hình qua:
+
+- `Chart.yaml`
+- `values.yaml`
+- `templates/*.yaml`
+
+---
+
+## 30. Cập nhật image tag bằng ArgoCD Image Updater
+
+Thay vì chỉnh tay `values.yaml` sau mỗi lần build image, bạn có thể dùng `ArgoCD Image Updater`.
+
+Trong project hiện tại, file `argocd/argocd-app.yaml` đã có annotation cho:
+
+- `product-service`
+- `order-service`
+- `inventory-service`
+
+Nó có thể:
+
+- phát hiện tag image mới
+- cập nhật giá trị image tag vào `helm/ecom-app/values.yaml`
+- commit ngược lại Git
+- để ArgoCD sync thay đổi mới đó xuống cluster
+
+### 30.1 Quy trình hoạt động đề xuất
+
+1. developer push code
+2. GitHub Actions chạy CI cho đúng service thay đổi
+3. image mới được build và push
+4. ArgoCD Image Updater phát hiện tag mới hoặc CI cập nhật tag vào Git
+5. Git thay đổi `values.yaml`
+6. ArgoCD sync chart mới
+7. Rollout diễn ra theo canary hoặc blue-green
+
+### 30.2 Kết quả mong đợi
+
+- tag image trong Git luôn phản ánh đúng version đang deploy
+- dễ audit
+- dễ rollback
+- đúng tinh thần GitOps
+
+---
+
+## 31. Checklist triển khai hoàn chỉnh
+
+Khi demo hoặc bàn giao, bạn có thể đi theo checklist sau:
+
+### Bước 1: kiểm tra công cụ
+
+```powershell
+git --version
+docker --version
+kubectl version --client
+helm version
+```
+
+### Bước 2: kiểm tra cluster
 
 ```powershell
 kubectl get nodes
 kubectl get storageclass
-cd E:\project
-helm lint .\helm\ecom-app
-helm template ecom-app .\helm\ecom-app
 ```
 
-Nếu các bước này ổn, làm tiếp:
+### Bước 3: đăng nhập Docker Hub
 
 ```powershell
-helm install ecom-app .\helm\ecom-app -n default --create-namespace
-kubectl get all -n default
-kubectl get pvc -n default
-kubectl get hpa -n default
-kubectl get rollout -n default
+docker login --username buiducthien090605
 ```
 
----
-
-## 32. Gợi ý demo với giảng viên
-
-Bạn có thể demo theo mạch sau:
-
-### Demo 1: giải thích kiến trúc
-Nói:
-- em dùng Helm umbrella chart
-- mỗi service là một subchart
-- product/order dùng rollout, inventory dùng deployment, rabbitmq dùng PVC
-
-### Demo 2: kiểm tra chart
-Chạy:
+### Bước 4: build image
 
 ```powershell
-helm lint .\helm\ecom-app
-helm template ecom-app .\helm\ecom-app
+docker build -t buiducthien090605/my-product-service:latest .
+docker build -t buiducthien090605/my-order-service:latest .
+docker build -t buiducthien090605/my-inventory-service:latest .
 ```
 
-### Demo 3: deploy bằng Helm
-Chạy:
+### Bước 5: push image
 
 ```powershell
-helm install ecom-app .\helm\ecom-app -n default --create-namespace
-kubectl get all -n default
-kubectl get hpa -n default
-kubectl get pvc -n default
-kubectl get rollout -n default
+docker push buiducthien090605/my-product-service:latest
+docker push buiducthien090605/my-order-service:latest
+docker push buiducthien090605/my-inventory-service:latest
 ```
 
-### Demo 4: ArgoCD
-Chạy:
+### Bước 6: lint chart
 
 ```powershell
+helm lint helm/ecom-app
+```
+
+### Bước 7: deploy chart
+
+```powershell
+helm upgrade --install ecom-app helm/ecom-app -n default
+```
+
+### Bước 8: kiểm tra pod
+
+```powershell
+kubectl get pods -n default
+kubectl get deploy,rollout,svc -n default
+```
+
+### Bước 9: kiểm tra log
+
+```powershell
+kubectl logs -n default deployment/inventory-service --tail=30
+```
+
+### Bước 10: cài Argo stack nếu cần demo GitOps
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\argocd\install-argocd.ps1
+kubectl apply -f .\argocd\git-credentials-secret.yaml
 kubectl apply -f .\argocd\argocd-app.yaml
-kubectl get applications -n argocd
 ```
-
-### Demo 5: rollout
-Đổi tag image rồi cho ArgoCD sync, sau đó kiểm tra rollout.
 
 ---
 
-## 33. Kết luận
+## 32. Các lỗi thường gặp và cách xử lý
 
-Nếu bạn là người mới, hãy nhớ nguyên tắc đơn giản sau:
+### 27.1 Pod `CrashLoopBackOff`
 
-- đừng làm tất cả một lúc
-- chạy Helm trước
-- khi Helm ổn rồi mới sang ArgoCD
-- khi ArgoCD ổn rồi mới test Image Updater
+Nguyên nhân thường gặp:
 
-Làm theo đúng tài liệu này, bạn sẽ biết:
-- cài gì trước
-- chạy lệnh nào
-- mong đợi điều gì
-- khi lỗi thì xem ở đâu
+- probe gọi vào endpoint không tồn tại
+- app không connect được MongoDB
+- app không connect được RabbitMQ
+- image được deploy không phải image mới nhất
 
-Nếu cần, sau tài liệu này bạn có thể làm thêm 2 file nữa:
-- một file checklist ngắn để demo
-- một file kịch bản thuyết trình với giảng viên
+Cách kiểm tra:
+
+```powershell
+kubectl logs <pod-name> -n default
+kubectl describe pod <pod-name> -n default
+```
+
+### 27.2 Lỗi MongoDB `ENOTFOUND`
+
+Nếu log có dạng:
+
+```text
+getaddrinfo ENOTFOUND mongodb.example.local
+```
+
+thì URI MongoDB đang sai hostname hoặc dùng placeholder chưa thay bằng giá trị thật.
+
+Cần kiểm tra lại:
+
+- `helm/ecom-app/values.yaml`
+- secret MongoDB render ra cluster
+
+### 27.3 `helm upgrade` conflict với Rollouts
+
+Nếu gặp lỗi conflict `.spec.selector`, kiểm tra xem service của rollout có đang bị Helm quản lý selector hay không.
+
+Với project hiện tại, lỗi này đã được sửa bằng cách bỏ `selector` khỏi service template của rollout services.
+
+### 27.4 Push Docker bị `insufficient_scope`
+
+Nguyên nhân:
+
+- chưa login Docker Hub
+- login sai tài khoản
+- push vào repo không có quyền
+
+Cách xử lý:
+
+```powershell
+docker login --username <your-user>
+```
+
+### 27.5 HPA không có số liệu
+
+Nếu `kubectl get hpa` không hiển thị CPU metric hợp lệ, nhiều khả năng cluster local chưa có `metrics-server`.
+
+---
+
+## 33. Khuyến nghị để project ổn định hơn
+
+Đây là các cải tiến nên làm tiếp:
+
+1. không dùng `latest`, hãy dùng tag theo version hoặc commit SHA
+2. không để MongoDB URI thật trong `values.yaml`, nên chuyển sang external secret hoặc sealed secret
+3. thêm smoke test sau deploy cho `/health`
+4. thêm CI pipeline build + push + update values tự động
+5. thêm tài liệu rollback khi rollout lỗi
+6. cài `metrics-server` nếu muốn demo HPA đầy đủ trên local
+
+---
+
+## 34. Trạng thái tốt cuối cùng cần đạt
+
+Bạn có thể xem là triển khai thành công khi:
+
+- `helm lint` pass
+- `helm upgrade --install` thành công
+- `kubectl get pods -n default` cho thấy mọi pod `Running`
+- `kubectl get deploy,rollout,svc -n default` hiển thị đủ tài nguyên
+- log của từng service xác nhận đã connect DB/RabbitMQ thành công
+- ArgoCD UI truy cập được
+- ArgoCD Application sync thành công
+
+---
+
+## 35. Lệnh tham chiếu nhanh
+
+### Build và push image
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project\backend\Product_Service
+docker build -t buiducthien090605/my-product-service:latest .
+docker push buiducthien090605/my-product-service:latest
+
+cd C:\Users\DELL\Documents\GitHub\project\backend\Order_Service
+docker build -t buiducthien090605/my-order-service:latest .
+docker push buiducthien090605/my-order-service:latest
+
+cd C:\Users\DELL\Documents\GitHub\project\backend\Inventory_Service
+docker build -t buiducthien090605/my-inventory-service:latest .
+docker push buiducthien090605/my-inventory-service:latest
+```
+
+### Helm
+
+```powershell
+cd C:\Users\DELL\Documents\GitHub\project
+helm lint helm/ecom-app
+helm template ecom-app helm/ecom-app -n default
+helm upgrade --install ecom-app helm/ecom-app -n default
+```
+
+### Kubernetes
+
+```powershell
+kubectl get pods -n default
+kubectl get deploy,rollout,svc -n default
+kubectl get hpa -n default
+kubectl get pvc -n default
+kubectl logs -n default deployment/inventory-service --tail=30
+```
+
+### ArgoCD
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\argocd\install-argocd.ps1
+kubectl apply -f .\argocd\git-credentials-secret.yaml
+kubectl apply -f .\argocd\argocd-app.yaml
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+---
+
+## 36. Kết luận
+
+Với repo hiện tại, cách triển khai đúng và ổn định nhất là:
+
+1. đảm bảo image trên Docker Hub luôn tồn tại và đúng tên
+2. đảm bảo các service backend có `/health`
+3. deploy bằng `helm upgrade --install`
+4. để Argo Rollouts quản lý selector của các service canary/stable
+5. dùng ArgoCD khi cần trình bày GitOps và tự động đồng bộ từ Git
+
+Nếu bạn muốn, bước tiếp theo mình có thể viết thêm cho bạn một trong 3 tài liệu phụ sau:
+
+- `Hướng dẫn demo project trước giảng viên`
+- `Hướng dẫn xử lý sự cố thường gặp`
+- `Hướng dẫn triển khai ngắn gọn 1 trang để nộp báo cáo`

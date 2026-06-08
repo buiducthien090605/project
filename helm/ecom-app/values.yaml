@@ -18,9 +18,8 @@ global:
     url: amqp://rabbitmq:5672
 
   storageClass:
-    name: ecom-storage
-    create: true
-    provisioner: driver.longhorn.io
+    name: hostpath
+    create: false
     reclaimPolicy: Retain
     volumeBindingMode: Immediate
     allowVolumeExpansion: true
@@ -43,9 +42,9 @@ configmap:
 
 secrets:
   mongodb:
-    productUri: mongodb://<product-user>:<product-password>@mongodb.example.local:27017/productdb
-    orderUri: mongodb://<order-user>:<order-password>@mongodb.example.local:27017/orderdb
-    inventoryUri: mongodb://<inventory-user>:<inventory-password>@mongodb.example.local:27017/inventorydb
+    productUri: mongodb://1:1@ac-1ilix43-shard-00-00.7l9cb3j.mongodb.net:27017,ac-1ilix43-shard-00-01.7l9cb3j.mongodb.net:27017,ac-1ilix43-shard-00-02.7l9cb3j.mongodb.net:27017/?ssl=true&replicaSet=atlas-5tosmn-shard-0&authSource=admin&appName=productdb
+    orderUri: mongodb://1:1@ac-mqohen7-shard-00-00.5pcn44r.mongodb.net:27017,ac-mqohen7-shard-00-01.5pcn44r.mongodb.net:27017,ac-mqohen7-shard-00-02.5pcn44r.mongodb.net:27017/?ssl=true&replicaSet=atlas-k8xe9d-shard-0&authSource=admin&appName=orderdb
+    inventoryUri: mongodb://1:1@ac-djphnyg-shard-00-00.04hvowf.mongodb.net:27017,ac-djphnyg-shard-00-01.04hvowf.mongodb.net:27017,ac-djphnyg-shard-00-02.04hvowf.mongodb.net:27017/?ssl=true&replicaSet=atlas-kyr032-shard-0&authSource=admin&appName=inventorydb
 
 product-service:
   enabled: true

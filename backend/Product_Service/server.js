@@ -35,6 +35,15 @@ const swaggerSpecs = swaggerJsDoc(swaggerOptions);
 app.use("/api-docs", swaggerUI.serve, swaggerUI.setup(swaggerSpecs));
 
 app.use("/api/products", require("./routes/productRoutes"))
+
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        status: "OK",
+        service: "product-service",
+        time: new Date().toISOString()
+    })
+})
+
 const port = process.env.PORT || 3001
 app.listen(port, () => {
     console.log(`Product Service runing on port ${port}`)
