@@ -72,15 +72,15 @@ Chart đang dùng:
 
 Các image service hiện tại trong `values.yaml` là:
 
-- `my-product-service:latest`
-- `my-order-service:latest`
-- `my-inventory-service:latest`
+- `my-product-service:sha-0000000`
+- `my-order-service:sha-0000000`
+- `my-inventory-service:sha-0000000`
 
 Khi render thực tế, image đầy đủ sẽ là:
 
-- `docker.io/buiducthien090605/my-product-service:latest`
-- `docker.io/buiducthien090605/my-order-service:latest`
-- `docker.io/buiducthien090605/my-inventory-service:latest`
+- `docker.io/buiducthien090605/my-product-service:sha-0000000`
+- `docker.io/buiducthien090605/my-order-service:sha-0000000`
+- `docker.io/buiducthien090605/my-inventory-service:sha-0000000`
 
 ---
 
@@ -306,29 +306,30 @@ Login Succeeded
 
 ```powershell
 cd C:\Users\DELL\Documents\GitHub\project\backend\Product_Service
-docker build -t buiducthien090605/my-product-service:latest .
+$SHORT_SHA = (git rev-parse --short HEAD)
+docker build -t buiducthien090605/my-product-service:sha-$SHORT_SHA .
 ```
 
 ### 12.3 Build image cho Order Service
 
 ```powershell
 cd C:\Users\DELL\Documents\GitHub\project\backend\Order_Service
-docker build -t buiducthien090605/my-order-service:latest .
+docker build -t buiducthien090605/my-order-service:sha-$SHORT_SHA .
 ```
 
 ### 12.4 Build image cho Inventory Service
 
 ```powershell
 cd C:\Users\DELL\Documents\GitHub\project\backend\Inventory_Service
-docker build -t buiducthien090605/my-inventory-service:latest .
+docker build -t buiducthien090605/my-inventory-service:sha-$SHORT_SHA .
 ```
 
 ### 12.5 Push image lên Docker Hub
 
 ```powershell
-docker push buiducthien090605/my-product-service:latest
-docker push buiducthien090605/my-order-service:latest
-docker push buiducthien090605/my-inventory-service:latest
+docker push buiducthien090605/my-product-service:sha-$SHORT_SHA
+docker push buiducthien090605/my-order-service:sha-$SHORT_SHA
+docker push buiducthien090605/my-inventory-service:sha-$SHORT_SHA
 ```
 
 Nếu bị lỗi kiểu:
@@ -721,11 +722,12 @@ Ví dụ với `product-service`:
 
 ```powershell
 cd C:\Users\DELL\Documents\GitHub\project\backend\Product_Service
-docker build -t buiducthien090605/my-product-service:latest .
-docker push buiducthien090605/my-product-service:latest
+$SHORT_SHA = (git rev-parse --short HEAD)
+docker build -t buiducthien090605/my-product-service:sha-$SHORT_SHA .
+docker push buiducthien090605/my-product-service:sha-$SHORT_SHA
 ```
 
-Sau đó cập nhật tag trong `helm/ecom-app/values.yaml` hoặc để `ArgoCD Image Updater` cập nhật tự động.
+Sau đó để `ArgoCD Image Updater` cập nhật tag mới vào `helm/ecom-app/values.yaml`.
 
 #### Cách test
 
@@ -1242,11 +1244,11 @@ Nó có thể:
 
 1. developer push code
 2. GitHub Actions chạy CI cho đúng service thay đổi
-3. image mới được build và push
-4. ArgoCD Image Updater phát hiện tag mới hoặc CI cập nhật tag vào Git
-5. Git thay đổi `values.yaml`
+3. image mới được build và push với tag kiểu `sha-<commit>`
+4. ArgoCD Image Updater phát hiện tag mới
+5. Git thay đổi `helm/ecom-app/values.yaml`
 6. ArgoCD sync chart mới
-7. Rollout diễn ra theo canary hoặc blue-green
+7. Rollout diễn ra theo canary
 
 ### 30.2 Kết quả mong đợi
 
@@ -1286,17 +1288,18 @@ docker login --username buiducthien090605
 ### Bước 4: build image
 
 ```powershell
-docker build -t buiducthien090605/my-product-service:latest .
-docker build -t buiducthien090605/my-order-service:latest .
-docker build -t buiducthien090605/my-inventory-service:latest .
+$SHORT_SHA = (git rev-parse --short HEAD)
+docker build -t buiducthien090605/my-product-service:sha-$SHORT_SHA .
+docker build -t buiducthien090605/my-order-service:sha-$SHORT_SHA .
+docker build -t buiducthien090605/my-inventory-service:sha-$SHORT_SHA .
 ```
 
 ### Bước 5: push image
 
 ```powershell
-docker push buiducthien090605/my-product-service:latest
-docker push buiducthien090605/my-order-service:latest
-docker push buiducthien090605/my-inventory-service:latest
+docker push buiducthien090605/my-product-service:sha-$SHORT_SHA
+docker push buiducthien090605/my-order-service:sha-$SHORT_SHA
+docker push buiducthien090605/my-inventory-service:sha-$SHORT_SHA
 ```
 
 ### Bước 6: lint chart
@@ -1328,6 +1331,8 @@ kubectl logs -n default deployment/inventory-service --tail=30
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\argocd\install-argocd.ps1
+kubectl apply -f .\argocd\argocd-image-updater-config.yaml
+kubectl apply -f .\argocd\longhorn-storage-profile.yaml
 kubectl apply -f .\argocd\git-credentials-secret.yaml
 kubectl apply -f .\argocd\argocd-app.yaml
 ```
@@ -1426,16 +1431,17 @@ Bạn có thể xem là triển khai thành công khi:
 
 ```powershell
 cd C:\Users\DELL\Documents\GitHub\project\backend\Product_Service
-docker build -t buiducthien090605/my-product-service:latest .
-docker push buiducthien090605/my-product-service:latest
+$SHORT_SHA = (git rev-parse --short HEAD)
+docker build -t buiducthien090605/my-product-service:sha-$SHORT_SHA .
+docker push buiducthien090605/my-product-service:sha-$SHORT_SHA
 
 cd C:\Users\DELL\Documents\GitHub\project\backend\Order_Service
-docker build -t buiducthien090605/my-order-service:latest .
-docker push buiducthien090605/my-order-service:latest
+docker build -t buiducthien090605/my-order-service:sha-$SHORT_SHA .
+docker push buiducthien090605/my-order-service:sha-$SHORT_SHA
 
 cd C:\Users\DELL\Documents\GitHub\project\backend\Inventory_Service
-docker build -t buiducthien090605/my-inventory-service:latest .
-docker push buiducthien090605/my-inventory-service:latest
+docker build -t buiducthien090605/my-inventory-service:sha-$SHORT_SHA .
+docker push buiducthien090605/my-inventory-service:sha-$SHORT_SHA
 ```
 
 ### Helm

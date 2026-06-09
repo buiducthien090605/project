@@ -11,6 +11,9 @@ metadata:
     argocd-image-updater.argoproj.io/product.update-strategy: newest-build
     argocd-image-updater.argoproj.io/order.update-strategy: newest-build
     argocd-image-updater.argoproj.io/inventory.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/product.allow-tags: regexp:^sha-[a-f0-9]{7,40}$
+    argocd-image-updater.argoproj.io/order.allow-tags: regexp:^sha-[a-f0-9]{7,40}$
+    argocd-image-updater.argoproj.io/inventory.allow-tags: regexp:^sha-[a-f0-9]{7,40}$
     argocd-image-updater.argoproj.io/product.helm.image-name: product-service.image.repository
     argocd-image-updater.argoproj.io/product.helm.image-tag: product-service.image.tag
     argocd-image-updater.argoproj.io/order.helm.image-name: order-service.image.repository

@@ -13,6 +13,8 @@ provisioner: {{ .Values.global.storageClass.provisioner }}
 reclaimPolicy: {{ .Values.global.storageClass.reclaimPolicy }}
 volumeBindingMode: {{ .Values.global.storageClass.volumeBindingMode }}
 allowVolumeExpansion: {{ .Values.global.storageClass.allowVolumeExpansion }}
+{{- with .Values.global.storageClass.parameters }}
 parameters:
-  {{- toYaml .Values.global.storageClass.parameters | nindent 2 }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
 {{- end }}
